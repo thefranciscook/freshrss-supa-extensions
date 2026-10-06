@@ -9,6 +9,7 @@
  * - A visit ends after `gap_min` minutes without activity. The next activity (page load, tab coming back,
  *   scroll, tap) sends the queue to ?c=SeenRead&a=commit, which marks them read (plus aged-out ones).
  * - Rewind (sidebar, and at the end of the stream) undoes the newest batch.
+ * - Exception: following a "Read more" link inside an article marks it read right away.
  */
 (function () {
 	const QUEUE_KEY = 'seenRead.queue';         // { entryId: seenAtMs }
@@ -95,6 +96,40 @@
 			if (st.dwell >= cfg.dwell_ms) {
 				markSeen(flux);
 			}
+		}
+	}
+
+	// ---- read more ----
+
+	// Link texts feeds use to send you to the full article
+	const READ_MORE = /\b(read|continue|keep|view|see) (more|reading|on|the (full|whole|rest|original))\b|\bfull (story|article|post)\b|^\W*more\W*$|tovább|bővebben|weiterlesen|lire la suite|leer más/i;
+
+	function sameUrl(a, b) {
+		try {
+			const norm = (u) => {
+				const url = new URL(u, location.href);
+				return (url.host.replace(/^www\./, '') + url.pathname.replace(/\/+$/, '') + url.search).toLowerCase();
+			};
+			return norm(a) === norm(b);
+		} catch (e) {
+			return false;
+		}
+	}
+
+	// FreshRSS ignores links inside the article body, so following a feed's "Read more" link
+	// (or any body link to the article itself) would leave the article unread. That click is as
+	// clear a signal as it gets, so it's marked read right away instead of waiting for the next visit.
+	function onLinkClick(ev) {
+		if (ev.type === 'auxclick' && ev.button !== 1) {
+			return;
+		}
+		const a = ev.target.closest('.flux .content .text a[href]');
+		const flux = a && a.closest('.flux');
+		if (!flux || !flux.classList.contains('not_read') || typeof window.mark_read !== 'function') {
+			return;
+		}
+		if (READ_MORE.test(a.textContent) || (flux.dataset.link && sameUrl(a.href, flux.dataset.link))) {
+			window.mark_read(flux, true, false);   // FreshRSS's own: updates the entry, its buttons and the counters
 		}
 	}
 
@@ -253,6 +288,9 @@
 			renderCaughtUp();
 		}).observe(stream, { childList: true, subtree: true });
 		renderCaughtUp();
+
+		document.addEventListener('click', onLinkClick);
+		document.addEventListener('auxclick', onLinkClick);   // middle click
 
 		setInterval(tick, TICK_MS);
 		touch();
