@@ -1,0 +1,1 @@
+# freshrss-supa-extensions
