@@ -125,6 +125,18 @@ body:has(#aside_feed.aside_feed) #global > .nav_menu {
 	gap: 0.25rem;
 }
 
+/* Other extensions' toolbar buttons, right-aligned before filter + sort */
+.mui-bar #nav_menu_hooks {
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
+	margin: 0 0 0 auto;
+}
+
+.mui-bar #nav_menu_hooks + #mui-tools {
+	margin-left: 0;
+}
+
 .mui-bar .btn,
 #mui-tools .btn {
 	min-height: 2.25rem;

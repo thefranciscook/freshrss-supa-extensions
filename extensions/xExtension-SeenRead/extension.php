@@ -12,6 +12,9 @@ require_once __DIR__ . '/lib/BatchStore.php';
  * visit (after a gap of inactivity) the queue is committed here and those articles become read.
  * Unread articles nobody ever scrolled to age out after N days. Every commit is kept as a batch
  * so the Rewind button can undo it, newest first.
+ *
+ * The dice in the toolbar swaps the stream for a fair random handful of the current view (see
+ * lib/Shuffler.php), skipping what you've already seen; "Roll again" deals a fresh one.
  */
 final class SeenReadExtension extends Minz_Extension {
 
@@ -22,16 +25,18 @@ final class SeenReadExtension extends Minz_Extension {
 		'age_days' => 7,        // unseen unread articles older than this get marked read; 0 = off
 	];
 	private const AGE_OUT_EVERY = 3600;  // seconds between age-out runs from the maintenance hook
+	private const SHUFFLE_POOL = 3000;   // the dice draws from this many of the newest articles in the view
 
 	#[\Override]
 	public function init(): void {
 		parent::init();
 		$this->registerTranslates();
 
-		// ?c=SeenRead&a=commit|rewind
+		// ?c=SeenRead&a=commit|rewind|shuffle
 		$this->registerController('SeenRead');
 
 		$this->registerHook(Minz_HookType::JsVars, [$this, 'jsVars']);
+		$this->registerHook(Minz_HookType::NavMenu, [$this, 'navMenu']);
 		$this->registerHook(Minz_HookType::FreshrssUserMaintenance, [$this, 'maintenance']);
 
 		Minz_View::appendStyle($this->getFileUrl('seen.css', 'css'));
@@ -56,6 +61,7 @@ final class SeenReadExtension extends Minz_Extension {
 			'urls' => [
 				'commit' => Minz_Url::display(['c' => 'SeenRead', 'a' => 'commit'], 'php'),
 				'rewind' => Minz_Url::display(['c' => 'SeenRead', 'a' => 'rewind'], 'php'),
+				'shuffle' => Minz_Url::display(['c' => 'SeenRead', 'a' => 'shuffle'], 'php'),
 				'recent' => Minz_Url::display(['c' => 'index', 'a' => 'index', 'params' => [
 					'state' => FreshRSS_Entry::STATE_READ, 'sort' => 'lastUserModified', 'order' => 'DESC',
 				]], 'php'),
@@ -65,9 +71,35 @@ final class SeenReadExtension extends Minz_Extension {
 				'nothing_to_rewind' => _t('ext.seen_read.nothing_to_rewind'),
 				'caught_up' => _t('ext.seen_read.caught_up'),
 				'recently_read' => _t('ext.seen_read.recently_read'),
+				'shuffled' => _t('ext.seen_read.shuffled'),
+				'roll_again' => _t('ext.seen_read.roll_again'),
+				'back_to_newest' => _t('ext.seen_read.back_to_newest'),
+				'nothing_to_shuffle' => _t('ext.seen_read.nothing_to_shuffle'),
+				'shuffle_failed' => _t('ext.seen_read.shuffle_failed'),
 			],
 		];
 		return $vars;
+	}
+
+	/**
+	 * The dice, next to the sort menu. Without JavaScript it is a plain link to FreshRSS's own random order.
+	 */
+	public function navMenu(): string {
+		if (!FreshRSS_Auth::hasAccess() || !in_array(Minz_Request::actionName(), ['index', 'normal', 'reader'], true)) {
+			return '';
+		}
+		$url = Minz_Request::currentRequest();
+		unset($url['params']['cid'], $url['params']['order'], $url['params']['rid']);
+		$url['params']['sort'] = 'rand';
+		$title = _t('ext.seen_read.shuffle');
+		// Five-pip die, drawn in currentColor so it follows the theme
+		return '<a class="btn sr-dice" href="' . Minz_Url::display($url) . '" title="' . $title . '" aria-label="' . $title . '">'
+			. '<svg class="icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">'
+			. '<rect x="1.5" y="1.5" width="13" height="13" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/>'
+			. '<circle cx="5" cy="5" r="1.2" fill="currentColor"/><circle cx="11" cy="5" r="1.2" fill="currentColor"/>'
+			. '<circle cx="8" cy="8" r="1.2" fill="currentColor"/>'
+			. '<circle cx="5" cy="11" r="1.2" fill="currentColor"/><circle cx="11" cy="11" r="1.2" fill="currentColor"/>'
+			. '</svg></a>';
 	}
 
 	public function batches(): SeenRead_BatchStore {
@@ -112,6 +144,30 @@ final class SeenReadExtension extends Minz_Extension {
 		}
 		$this->setUserConfigurationValue('last_age_out', time());
 		return ['seen' => $seen, 'aged' => $aged];
+	}
+
+	/**
+	 * A fair random handful of the view described by the request (get, state, search), as FreshRSS_Context
+	 * already parsed it, minus what was seen and what the previous roll dealt. Articles a roll dealt but you
+	 * flung past may come back later; in a view too small for that, the same ones come back reshuffled.
+	 * @param list<string> $seen looked at this visit (about to be marked read anyway)
+	 * @param list<string> $previous dealt by the previous roll
+	 * @return list<string>
+	 */
+	public function shuffle(array $seen, array $previous): array {
+		require_once __DIR__ . '/lib/EntryQueries.php';
+		require_once __DIR__ . '/lib/Shuffler.php';
+
+		$get = FreshRSS_Context::currentGet(true);
+		[$type, $id] = is_array($get) ? [$get[0], (int)$get[1]] : [$get, 0];
+		$pool = FreshRSS_Factory::createEntryDao()->listIdsWhere($type, $id, FreshRSS_Context::$state, FreshRSS_Context::$search,
+			limit: self::SHUFFLE_POOL) ?? [];
+		$feedOf = (new SeenRead_EntryQueries())->feedsOf($pool);
+
+		$n = max(10, min(50, FreshRSS_Context::userConf()->posts_per_page));
+		$shuffler = new SeenRead_Shuffler();
+		$ids = $shuffler->pick($feedOf, $n, array_merge($seen, $previous));
+		return $ids !== [] ? $ids : $shuffler->pick($feedOf, $n, $seen);
 	}
 
 	/** @return array{restored:int,next:array{at:int,kind:string,count:int}|null} */

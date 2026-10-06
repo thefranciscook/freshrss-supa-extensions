@@ -30,7 +30,7 @@
 			return;
 		}
 
-		// 1. Top bar takes the toolbar's place: [☰] ... [filter][sort]
+		// 1. Top bar takes the toolbar's place: [☰] ... [extension buttons][filter][sort]
 		const bar = document.createElement('div');
 		bar.className = 'mui-bar';
 		nav.before(bar);
@@ -68,6 +68,13 @@
 		}
 		aside.insertBefore(top, anchor);
 		aside.insertBefore(nav, anchor);
+
+		// Buttons other extensions add to the toolbar (NavMenu hook, e.g. Seen Read's dice) stay in the
+		// top bar at every width: there's room for them even on phones
+		const hooks = nav.querySelector('#nav_menu_hooks');
+		if (hooks) {
+			bar.append(hooks);
+		}
 
 		// 3. Filter + sort sit in the top bar on desktop, in the sidebar on mobile
 		function placeTools() {

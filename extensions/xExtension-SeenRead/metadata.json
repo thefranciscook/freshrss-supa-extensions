@@ -1,7 +1,7 @@
 {
   "name": "Seen Read",
   "author": "Szilard Szakacs",
-  "description": "Instagram-style auto-read: articles you actually looked at while scrolling become read on your next visit, old unseen ones age out, and Rewind undoes it.",
+  "description": "Instagram-style auto-read: articles you actually looked at while scrolling become read on your next visit, old unseen ones age out, and Rewind undoes it. A dice deals a fair random mix when the stream gets boring.",
   "version": "0.1.0",
   "entrypoint": "SeenRead",
   "type": "user"
