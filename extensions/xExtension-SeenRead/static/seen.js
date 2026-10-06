@@ -251,7 +251,12 @@
 		const wrap = document.createElement('div');
 		wrap.className = 'sr-rewind-wrap';
 		wrap.append(rewindButton());
-		aside.insertBefore(wrap, aside.querySelector('#sidebar'));
+		const tree = aside.querySelector('#sidebar');   // newer FreshRSS wraps it in the mark-read form
+		if (tree) {
+			tree.before(wrap);
+		} else {
+			aside.append(wrap);
+		}
 	}
 
 	// ---- wiring ----
