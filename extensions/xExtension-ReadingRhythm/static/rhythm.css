@@ -1,0 +1,4 @@
+/* Only loaded on pages Reading Rhythm reorders: day dividers would repeat between every other post */
+#stream .transition {
+	display: none;
+}

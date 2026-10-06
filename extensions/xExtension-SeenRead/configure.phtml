@@ -1,0 +1,35 @@
+<?php
+/** @var SeenReadExtension $this */
+?>
+<form action="<?= _url('extension', 'configure', 'e', urlencode($this->getName())) ?>" method="post">
+	<input type="hidden" name="_csrf" value="<?= FreshRSS_Auth::csrfToken() ?>" />
+
+	<p><?= _t('ext.seen_read.intro') ?></p>
+	<?php if (FreshRSS_Context::userConf()->mark_when['scroll']) { ?>
+		<p class="alert alert-warn"><?= _t('ext.seen_read.scroll_warning') ?></p>
+	<?php } ?>
+
+	<?php foreach ([
+		'dwell_ms' => ['min' => 200, 'step' => 100],
+		'max_speed' => ['min' => 0.1, 'step' => 0.1],
+		'gap_min' => ['min' => 1, 'step' => 1],
+		'age_days' => ['min' => 0, 'step' => 1],
+	] as $key => $attrs) { ?>
+	<div class="form-group">
+		<label class="group-name" for="<?= $key ?>"><?= _t('ext.seen_read.' . $key) ?></label>
+		<div class="group-controls">
+			<input type="number" name="<?= $key ?>" id="<?= $key ?>" min="<?= $attrs['min'] ?>" step="<?= $attrs['step'] ?>"
+			       value="<?= $this->setting($key) ?>" />
+			<?php if ($key === 'age_days') { ?>
+				<p class="help"><?= _t('ext.seen_read.age_help') ?></p>
+			<?php } ?>
+		</div>
+	</div>
+	<?php } ?>
+
+	<div class="form-group form-actions">
+		<div class="group-controls">
+			<button type="submit" class="btn btn-important"><?= _t('gen.action.submit') ?></button>
+		</div>
+	</div>
+</form>

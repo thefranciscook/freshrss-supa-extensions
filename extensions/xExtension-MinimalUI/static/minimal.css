@@ -1,0 +1,592 @@
+/*
+ * Minimal UI for FreshRSS (tuned for Origine; colours apply in dark mode only).
+ *
+ * "Reading pages" = pages with the feed sidebar (normal + reader views), matched with
+ * body:has(#aside_feed.aside_feed). Elements tagged .mui-* are created by minimal.js.
+ */
+
+:root {
+	--mui-font: "Fira Sans", "OpenSans", system-ui, -apple-system, "Segoe UI", sans-serif;
+	--mui-reading-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+	--mui-bar-height: 3rem;
+	--mui-title-size: 1.6rem;
+	/* Substack uses 19px / 1.6; we run 2px smaller */
+	--mui-text-size: 17px;
+	--mui-text-leading: 1.6;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root.darkMode_auto {
+		--mui-bg: #131314;
+		--mui-bg-raised: #1c1c1e;
+		--mui-divider: #2a2a2d;
+		--mui-text-muted: #8b8b90;
+		--mui-text-subtle: #5d5d62;
+		--mui-text: #d4d4d4;
+		--mui-link: #7aa7d9;	/* ~7:1 on --mui-bg; the theme's #467eb3 is 4.3:1 */
+		--mui-link-underline: #7aa7d959;
+
+		/* Flatten the theme's layered greys onto the single background */
+		--frss-background-color: var(--mui-bg);
+		--background-color-light: var(--mui-bg);
+		--background-color-grey: var(--mui-bg);
+		--background-color-light-shadowed: var(--mui-bg-raised);
+		--border-color: var(--mui-divider);
+		--frss-border-color: var(--mui-divider);
+	}
+
+	:root.darkMode_auto .dropdown-menu {
+		background-color: var(--mui-bg-raised);
+		border-color: var(--mui-divider);
+	}
+}
+
+/*=== Day-of-week glow at the top of reading pages (minimal.js sets data-mui-day = 0..6, Sunday = 0) */
+@media (prefers-color-scheme: dark) {
+	:root.darkMode_auto {
+		--mui-tint: #4b5d57;
+		--mui-glow-height: 420px;
+	}
+
+	:root.darkMode_auto[data-mui-day="0"] { --mui-tint: #54465f; }	/* Sun: dusk violet */
+	:root.darkMode_auto[data-mui-day="1"] { --mui-tint: #3d5063; }	/* Mon: slate blue */
+	:root.darkMode_auto[data-mui-day="2"] { --mui-tint: #4b5d57; }	/* Tue: sage */
+	:root.darkMode_auto[data-mui-day="3"] { --mui-tint: #5f4a3e; }	/* Wed: clay */
+	:root.darkMode_auto[data-mui-day="4"] { --mui-tint: #3c5a5e; }	/* Thu: teal */
+	:root.darkMode_auto[data-mui-day="5"] { --mui-tint: #5f4350; }	/* Fri: wine */
+	:root.darkMode_auto[data-mui-day="6"] { --mui-tint: #56553d; }	/* Sat: olive */
+
+	:root.darkMode_auto[data-mui-day] body:has(#aside_feed.aside_feed) {
+		background:
+			linear-gradient(to bottom, color-mix(in srgb, var(--mui-tint) 75%, var(--mui-bg)), var(--mui-bg) var(--mui-glow-height)) no-repeat,
+			var(--mui-bg);
+	}
+
+	/* Let the glow show through everything stacked on top of body */
+	:root.darkMode_auto body:has(#aside_feed.aside_feed) #global,
+	:root.darkMode_auto body:has(#aside_feed.aside_feed) #stream,
+	:root.darkMode_auto body:has(#aside_feed.aside_feed) .mui-bar {
+		background: transparent;
+	}
+}
+
+/*=== Fonts: Fira Sans for the interface, the platform's own UI font for articles */
+html, body,
+input, select, textarea, button {
+	font-family: var(--mui-font);
+}
+
+/* Same stack Reddit and sans-serif Substacks use: SF Pro on Apple, Segoe UI on Windows, Roboto on Android */
+.flux .content,
+.flux_content .content {
+	font-family: var(--mui-reading-font);
+}
+
+/*=== Header bar: removed on reading pages (search + settings move into the sidebar) */
+body:has(#aside_feed.aside_feed) > .header {
+	display: none;
+}
+
+body:has(#aside_feed.aside_feed) #global {
+	height: 100vh;
+}
+
+/* Before minimal.js runs, the toolbar shows only the sidebar toggle, so nothing jumps */
+body:has(#aside_feed.aside_feed) #global > .nav_menu > :not(#nav_menu_toggle_aside) {
+	display: none;
+}
+
+body:has(#aside_feed.aside_feed) #global > .nav_menu {
+	background: transparent;
+}
+
+/*=== Top bar: [☰] ........ [filter][sort] */
+.mui-bar {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	min-height: var(--mui-bar-height);
+	padding: 0.25rem 0.5rem;
+	box-sizing: border-box;
+	background: transparent;
+}
+
+.mui-bar #nav_menu_toggle_aside {
+	position: static;
+}
+
+.mui-bar #mui-tools {
+	margin-left: auto;
+}
+
+#mui-tools {
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
+}
+
+.mui-bar .btn,
+#mui-tools .btn {
+	min-height: 2.25rem;
+	min-width: 2.25rem;
+	padding: 0.4rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: transparent;
+	border: 0;
+	border-radius: 6px;
+	box-shadow: none;
+	color: var(--mui-text-muted, var(--font-color-grey));
+}
+
+.mui-bar .btn:hover,
+#mui-tools .btn:hover,
+.mui-bar .btn.active,
+#mui-tools .dropdown-target:target ~ .btn.dropdown-toggle {
+	background: var(--mui-bg-raised, var(--background-color-hover));
+	color: var(--font-color);
+}
+
+/* Hamburger instead of the folder icon (pure CSS: CSP forbids data: images) */
+#nav_menu_toggle_aside .btn > * {
+	display: none;
+}
+
+#nav_menu_toggle_aside .btn::before {
+	content: "";
+	display: block;
+	width: 18px;
+	height: 14px;
+	background:
+		linear-gradient(currentColor 0 0) 0 0 / 100% 2px no-repeat,
+		linear-gradient(currentColor 0 0) 0 50% / 100% 2px no-repeat,
+		linear-gradient(currentColor 0 0) 0 100% / 100% 2px no-repeat;
+}
+
+/* Filter icon on the (repurposed) user-queries button */
+#mui-tools #toggle-userqueries > * {
+	display: none;
+}
+
+#mui-tools #toggle-userqueries::before {
+	content: "";
+	display: block;
+	width: 16px;
+	height: 12px;
+	background:
+		linear-gradient(currentColor 0 0) 50% 0 / 100% 2px no-repeat,
+		linear-gradient(currentColor 0 0) 50% 50% / 62% 2px no-repeat,
+		linear-gradient(currentColor 0 0) 50% 100% / 25% 2px no-repeat;
+}
+
+#mui-tools .btn .icon {
+	opacity: 0.75;
+}
+
+/* Dropdowns open towards the inside of the screen */
+.mui-bar #mui-tools .dropdown-menu {
+	left: auto;
+	right: 0;
+}
+
+/* The state toggles, now rows of the filter menu */
+#mui-tools .mui-filter-item > a {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	background: none;
+	border: 0;
+	box-shadow: none;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 0.4rem 1rem;
+	text-align: left;
+	justify-content: flex-start;
+	border-radius: 0;
+	color: var(--font-color);
+}
+
+#mui-tools .mui-filter-item > a:hover {
+	background: var(--background-color-hover);
+}
+
+#mui-tools .mui-filter-item > a::after {
+	content: "";
+	margin-left: auto;
+	padding-left: 1rem;
+}
+
+#mui-tools .mui-filter-item > a[aria-checked="true"]::after {
+	content: "✓";
+	color: var(--font-color-link);
+}
+
+#mui-tools .mui-filter-item > a[aria-checked="false"] {
+	color: var(--font-color-grey);
+}
+
+/*=== Sidebar: [search][refresh][settings] / [mark read][views] / subscriptions / tree */
+.aside_feed .mui-search {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
+	padding: 0.5rem 0.75rem 0.25rem;
+}
+
+.aside_feed .mui-search form {
+	flex: 1;
+	min-width: 0;
+}
+
+.aside_feed .mui-search .stick {
+	display: flex;
+	width: 100%;
+}
+
+.aside_feed .mui-search input[type="search"] {
+	flex: 1;
+	width: auto;
+	min-width: 0;
+}
+
+.aside_feed .mui-search > .group .btn {
+	min-height: 2.25rem;
+	min-width: 2.25rem;
+	padding: 0.4rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: transparent;
+	border: 0;
+	box-shadow: none;
+}
+
+.aside_feed .mui-search > .group .btn:hover,
+.aside_feed .mui-search .dropdown-target:target ~ .btn {
+	background: var(--mui-bg-raised, var(--background-color-hover));
+}
+
+/* Settings menu: anchored to the row, not the gear, so the sidebar does not clip it */
+.aside_feed .mui-search .configure .dropdown {
+	position: static;
+}
+
+.aside_feed .mui-search .configure .dropdown-menu {
+	left: 0.75rem;
+	right: 0.75rem;
+	max-height: 70vh;
+	overflow-y: auto;
+	text-align: left;
+}
+
+.aside_feed .mui-search .configure .dropdown-menu::after {
+	display: none;
+}
+
+.aside_feed .nav_menu {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.5rem 0.75rem 0.75rem;
+	text-align: left;
+	background: transparent;
+	border: 0;
+}
+
+.aside_feed .nav_menu .group,
+.aside_feed .nav_menu .stick {
+	margin: 0;
+}
+
+/* Only the mobile search lived here; the real search is now above */
+.aside_feed .nav_menu #nav_menu_actions,
+.aside_feed .nav_menu #nav_menu_hooks:not(:has(*)) {
+	display: none;
+}
+
+.aside_feed .configure-feeds {
+	margin-top: 0.25rem;
+}
+
+.aside.aside_feed {
+	background: var(--mui-bg, var(--background-color-light));
+	border-right: 1px solid var(--frss-border-color);
+}
+
+/*=== Reader view: articles */
+#stream.reader .flux {
+	padding: 0;
+	background: transparent;
+	border: 0;
+	border-bottom: 1px solid var(--frss-border-color);
+}
+
+#stream.reader .flux .flux_content {
+	padding: 2.5rem 0;
+	background: transparent;
+	border: 0;
+}
+
+/* Icons above the title and the whole bottom action row */
+.flux_content .article-header-topline .item.manage,
+.flux_content .article-header-topline .item.link,
+.flux_content .subtitle .item.manage,
+.flux_content .subtitle .item.link,
+.flux_content .article-header-topline:not(:has(.website)),
+#stream.reader .flux_content > footer {
+	display: none;
+}
+
+/* Header, Reddit style (the first line is built by minimal.js):
+ *   [icon] category • 5 hours ago
+ *   Title
+ *   feed name  By: author
+ */
+.mui-kicker {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	min-width: 0;
+	margin-top: 0.25rem;
+	font-size: 0.875rem;
+	line-height: 1.4;
+	white-space: nowrap;
+	color: var(--mui-text-muted, var(--font-color-grey));
+}
+
+.mui-kicker-icon {
+	flex: none;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	object-fit: cover;
+	background: var(--mui-bg-raised, var(--background-color-hover));
+}
+
+.mui-kicker .mui-kicker-category {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-weight: 600;
+	color: var(--font-color);
+	text-decoration: none;
+}
+
+.mui-kicker .mui-kicker-category:hover {
+	text-decoration: underline;
+}
+
+.mui-kicker-dot {
+	flex: none;
+	font-size: 0.7em;
+	color: var(--mui-text-subtle, var(--font-color-grey));
+}
+
+.mui-kicker time {
+	flex: none;
+}
+
+.flux_content .content > header > .title {
+	margin: 0.35rem 0 0.4rem;
+	font-size: var(--mui-title-size);
+	line-height: 1.3;
+	font-weight: 500;
+}
+
+/* The date now lives in the first line; the feed icon too, so don't repeat it */
+.flux_content .content > header:has(.mui-kicker) .subtitle .item.date,
+.flux_content .content > header:has(.mui-kicker-icon) .subtitle .website .favicon {
+	display: none;
+}
+
+.flux_content .content > header > .subtitle {
+	display: flex;
+	min-width: 0;
+}
+
+.flux_content .content > header > .subtitle > .item:not(.date) {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.flux_content time[data-mui-full] {
+	cursor: default;
+}
+
+/* Long feed names ellipsize instead of shoving the row apart */
+.flux_content .subtitle > .item:not(.date) {
+	display: flex;
+	align-items: center;
+	gap: 0.35em;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.flux_content .subtitle .website,
+.flux_content .article-header-topline .website {
+	flex: 0 1 auto;
+	min-width: 3em;
+	overflow: hidden;
+}
+
+.flux_content .subtitle .website a,
+.flux_content .article-header-topline .website {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.flux_content .subtitle .website span,
+.flux_content .article-header-topline .website span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.flux_content .subtitle .author {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Tags: barely there */
+.flux_content .tags {
+	font-size: 0.8rem;
+	opacity: 0.5;
+}
+
+.flux_content .tags > .icon {
+	display: none;
+}
+
+.flux_content .tags .link-tag {
+	color: var(--mui-text-muted, var(--font-color-grey));
+}
+
+.flux_content .tags:hover {
+	opacity: 0.9;
+}
+
+/*=== Article body typography (reader view, and expanded articles in normal view) */
+.flux_content .content .text {
+	font-size: var(--mui-text-size);
+	line-height: var(--mui-text-leading);
+	color: var(--mui-text, inherit);
+}
+
+/* Roughly one line between blocks, nothing extra above them */
+.flux_content .text :is(p, ul, ol, dl, blockquote, pre, figure, table) {
+	margin-top: 0;
+	margin-bottom: 1em;
+}
+
+.flux_content .text li + li {
+	margin-top: 0.25em;
+}
+
+.flux_content .text :is(li > ul, li > ol) {
+	margin-bottom: 0;
+}
+
+/* Headings inside articles: clearly bigger than body, more space above than below */
+.flux_content .text :is(h1, h2, h3, h4, h5, h6) {
+	margin: 1.6em 0 0.5em;
+	line-height: 1.3;
+	font-weight: 500;
+	color: var(--font-color);
+}
+
+.flux_content .text h1 { font-size: 1.5em; }
+.flux_content .text h2 { font-size: 1.3em; }
+.flux_content .text h3 { font-size: 1.15em; }
+.flux_content .text :is(h4, h5, h6) { font-size: 1em; }
+
+.flux_content .text > :first-child {
+	margin-top: 0;
+}
+
+/* Links: brighter, and not signalled by colour alone */
+.flux_content .text a {
+	color: var(--mui-link, var(--font-color-link));
+	text-decoration: underline;
+	text-decoration-color: var(--mui-link-underline, currentColor);
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.2em;
+}
+
+.flux_content .text a:hover {
+	text-decoration-color: currentColor;
+}
+
+/* Justified text leaves rivers of white space */
+.flux_content .text [align="justify"] {
+	text-align: start;
+}
+
+/* Media fills the column and gets breathing room; small inline images (emoji etc.) stay inline */
+.flux_content .text :is(img, video, iframe) {
+	max-width: 100%;
+}
+
+.flux_content .text img {
+	height: auto;
+}
+
+.flux_content .text :is(p, a, figure, div) > img:only-child {
+	display: block;
+	margin: 1.5em auto;
+}
+
+.flux_content .text figure {
+	margin: 1.5em 0;
+}
+
+.flux_content .text figure img {
+	margin: 0 auto;
+}
+
+.flux_content .text figcaption {
+	margin-top: 0.5em;
+	font-size: 0.85em;
+	color: var(--mui-text-muted, var(--font-color-grey));
+}
+
+.flux_content .text blockquote {
+	margin-left: 0;
+	padding-left: 1em;
+	border-left: 3px solid var(--frss-border-color);
+	color: var(--mui-text-muted, inherit);
+}
+
+.flux_content .text :is(code, pre, kbd) {
+	font-size: 0.88em;
+}
+
+/*=== Mobile */
+@media (max-width: 840px) {
+	:root {
+		--mui-text-size: 16px;
+	}
+
+	/* Article side padding x1.5 (theme uses 1rem on phones) */
+	.content header,
+	.content .text,
+	.content footer {
+		padding-left: 1.5rem;
+		padding-right: 1.5rem;
+	}
+
+	.aside_feed #mui-tools {
+		margin-left: auto;
+	}
+
+	/* On phones "Mark as read" collapses to its ✓ toggle; give it back its rounded left edge */
+	.aside_feed .nav_menu_read_all .dropdown-toggle {
+		border-left-width: 1px;
+		border-radius: 3px;
+	}
+}

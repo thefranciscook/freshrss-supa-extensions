@@ -1,0 +1,7 @@
+.helloworld-banner {
+	padding: 0.4em 0.8em;
+	margin-bottom: 0.8em;
+	border-left: 4px solid #2a7ae2;
+	background: rgba(42, 122, 226, 0.08);
+	font-style: italic;
+}

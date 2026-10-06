@@ -1,0 +1,8 @@
+{
+  "name": "Reading Rhythm",
+  "author": "Szilard Szakacs",
+  "description": "Varied stream: caps posts per feed per day, mixes categories and feeds, and spreads image posts evenly across each page.",
+  "version": "0.1.0",
+  "entrypoint": "ReadingRhythm",
+  "type": "user"
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Minimal UI",
+  "author": "Szilard Szakacs",
+  "description": "Distraction-free reading: no header bar, toolbar folded into the sidebar, filter + sort on the right, relative dates, Fira Sans, #131314 dark background.",
+  "version": "0.1.0",
+  "entrypoint": "MinimalUI",
+  "type": "user"
+}

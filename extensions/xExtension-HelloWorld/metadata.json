@@ -1,0 +1,8 @@
+{
+  "name": "Hello World",
+  "author": "Szilard Szakacs",
+  "description": "Sample extension: adds a banner above each article and a configurable greeting. Use as a template.",
+  "version": "0.1.0",
+  "entrypoint": "HelloWorld",
+  "type": "user"
+}

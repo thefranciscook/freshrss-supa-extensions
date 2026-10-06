@@ -1,0 +1,10 @@
+.DS_Store
+*.log
+.env
+
+# Third-party extensions installed into the local dev instance only
+# (from github.com/FreshRSS/Extensions; not part of this repo)
+extensions/xExtension-GridView/
+extensions/xExtension-ImageProxy/
+extensions/xExtension-TitleWrap/
+extensions/xExtension-YouTube/

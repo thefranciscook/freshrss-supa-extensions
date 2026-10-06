@@ -1,0 +1,46 @@
+# Local FreshRSS instance for developing the extensions in ./extensions.
+#
+#   make up        -> http://localhost:8080  (login: admin / admin123)
+#   make reset     -> wipe the data volume (needed if you change FRESHRSS_INSTALL/USER)
+#
+# ./extensions is bind-mounted into the container, so every edit you make on
+# the host is live on the next page reload. Enable an extension once under
+# Settings -> Extensions (or Administration -> Extensions for "system" types).
+
+services:
+  freshrss:
+    # Pin to the same tag your VPS runs so behaviour matches. :latest = last
+    # stable release, :edge = rolling dev branch.
+    image: freshrss/freshrss:${FRESHRSS_TAG:-latest}
+    container_name: freshrss-dev
+    ports:
+      # Not pinned to 127.0.0.1: on macOS "localhost" resolves to ::1 first.
+      - "8080:80"
+    volumes:
+      - data:/var/www/FreshRSS/data
+      - ./extensions:/var/www/FreshRSS/extensions
+    environment:
+      TZ: Europe/Budapest
+      # Disable the cron feed refresh during dev; use `make refresh` instead.
+      CRON_MIN: ""
+      # Auto-install on FIRST start only (SQLite, no external DB needed).
+      FRESHRSS_INSTALL: |-
+        --api-enabled
+        --base-url http://localhost:8080
+        --default-user admin
+        --language en
+      FRESHRSS_USER: |-
+        --api-password admin123
+        --email admin@example.com
+        --language en
+        --password admin123
+        --user admin
+    healthcheck:
+      test: ["CMD", "php", "cli/health.php"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+volumes:
+  data:

@@ -1,0 +1,42 @@
+<?php
+/** @var ReadingRhythmExtension $this */
+?>
+<form action="<?= _url('extension', 'configure', 'e', urlencode($this->getName())) ?>" method="post">
+	<input type="hidden" name="_csrf" value="<?= FreshRSS_Auth::csrfToken() ?>" />
+
+	<p class="help"><?= _i('help') ?> <?= _t('ext.readingrhythm.scope_help') ?></p>
+
+	<div class="form-group">
+		<label class="group-name" for="cap_per_day"><?= _t('ext.readingrhythm.cap_per_day') ?></label>
+		<div class="group-controls">
+			<input type="number" name="cap_per_day" id="cap_per_day" min="0" step="1" value="<?= $this->capPerDay() ?>" />
+			<p class="help"><?= _i('help') ?> <?= _t('ext.readingrhythm.cap_per_day_help') ?></p>
+		</div>
+	</div>
+
+	<div class="form-group">
+		<div class="group-controls">
+			<label class="checkbox" for="mix">
+				<input type="checkbox" name="mix" id="mix" value="1"<?= $this->mix() ? ' checked="checked"' : '' ?> />
+				<?= _t('ext.readingrhythm.mix') ?>
+			</label>
+			<p class="help"><?= _i('help') ?> <?= _t('ext.readingrhythm.mix_help') ?></p>
+		</div>
+	</div>
+
+	<div class="form-group">
+		<div class="group-controls">
+			<label class="checkbox" for="images">
+				<input type="checkbox" name="images" id="images" value="1"<?= $this->images() ? ' checked="checked"' : '' ?> />
+				<?= _t('ext.readingrhythm.images') ?>
+			</label>
+			<p class="help"><?= _i('help') ?> <?= _t('ext.readingrhythm.images_help') ?></p>
+		</div>
+	</div>
+
+	<div class="form-group form-actions">
+		<div class="group-controls">
+			<button type="submit" class="btn btn-important"><?= _t('gen.action.submit') ?></button>
+		</div>
+	</div>
+</form>
