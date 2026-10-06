@@ -33,6 +33,24 @@ final class FreshExtension_SeenRead_Controller extends FreshRSS_ActionController
 		]);
 	}
 
+	/**
+	 * get, state, search (the current view, as in its URL) + seen[]=… + previous[]=… → ids of a fair random
+	 * handful, in display order. The client then loads them with search=e:… and swaps them into the stream.
+	 */
+	public function shuffleAction(): void {
+		$ext = $this->extension();
+		try {
+			FreshRSS_Context::updateUsingRequest(false);
+		} catch (FreshRSS_Context_Exception) {
+			header('HTTP/1.1 404 Not Found');
+			exit();
+		}
+		$this->json(['ids' => $ext->shuffle(
+			SeenRead_BatchStore::cleanIds(Minz_Request::paramArray('seen', plaintext: true)),
+			SeenRead_BatchStore::cleanIds(Minz_Request::paramArray('previous', plaintext: true)),
+		)]);
+	}
+
 	public function rewindAction(): void {
 		$result = $this->extension()->rewind();
 		$this->json(['restored' => $result['restored'], 'last_batch' => $result['next']]);

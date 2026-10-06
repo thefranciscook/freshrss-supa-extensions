@@ -9,6 +9,8 @@
  * - A visit ends after `gap_min` minutes without activity. The next activity (page load, tab coming back,
  *   scroll, tap) sends the queue to ?c=SeenRead&a=commit, which marks them read (plus aged-out ones).
  * - Rewind (sidebar, and at the end of the stream) undoes the newest batch.
+ * - Exception: following a "Read more" link inside an article marks it read right away.
+ * - The dice (toolbar) swaps the stream for a fair random mix of this view, minus what you've seen.
  */
 (function () {
 	const QUEUE_KEY = 'seenRead.queue';         // { entryId: seenAtMs }
@@ -96,6 +98,180 @@
 				markSeen(flux);
 			}
 		}
+	}
+
+	// ---- read more ----
+
+	// Link texts feeds use to send you to the full article
+	const READ_MORE = /\b(read|continue|keep|view|see) (more|reading|on|the (full|whole|rest|original))\b|\bfull (story|article|post)\b|^\W*more\W*$|tovább|bővebben|weiterlesen|lire la suite|leer más/i;
+
+	function sameUrl(a, b) {
+		try {
+			const norm = (u) => {
+				const url = new URL(u, location.href);
+				return (url.host.replace(/^www\./, '') + url.pathname.replace(/\/+$/, '') + url.search).toLowerCase();
+			};
+			return norm(a) === norm(b);
+		} catch (e) {
+			return false;
+		}
+	}
+
+	// FreshRSS ignores links inside the article body, so following a feed's "Read more" link
+	// (or any body link to the article itself) would leave the article unread. That click is as
+	// clear a signal as it gets, so it's marked read right away instead of waiting for the next visit.
+	function onLinkClick(ev) {
+		if (ev.type === 'auxclick' && ev.button !== 1) {
+			return;
+		}
+		const a = ev.target.closest('.flux .content .text a[href]');
+		const flux = a && a.closest('.flux');
+		if (!flux || !flux.classList.contains('not_read') || typeof window.mark_read !== 'function') {
+			return;
+		}
+		if (READ_MORE.test(a.textContent) || (flux.dataset.link && sameUrl(a.href, flux.dataset.link))) {
+			window.mark_read(flux, true, false);   // FreshRSS's own: updates the entry, its buttons and the counters
+		}
+	}
+
+	// ---- dice ----
+
+	let rolling = false;
+	let shuffled = false;
+	let dealt = [];   // ids of the hand on screen, so "Roll again" deals a different one
+
+	function fmt(str, ...args) {
+		return str.replace(/%(\d)\$d/g, (m, i) => String(args[i - 1]));
+	}
+
+	function notify(msg) {
+		if (typeof window.openNotification === 'function') {
+			window.openNotification(msg, 'bad');
+		}
+	}
+
+	// get / state / search of the page we're on: the dice draws from exactly what this view shows
+	function viewParams() {
+		const current = new URLSearchParams(location.search);
+		return ['get', 'state', 'search'].filter((k) => current.has(k)).map((k) => [k, current.get(k)]);
+	}
+
+	// The picked articles, rendered by FreshRSS itself: the same page, narrowed down to them
+	function fetchEntries(ids) {
+		const url = new URL(location.href);
+		url.hash = '';
+		['cid', 'offset', 'idMax'].forEach((k) => url.searchParams.delete(k));
+		url.searchParams.set('search', 'e:' + ids.join(','));
+		url.searchParams.set('nb', String(ids.length));
+		url.searchParams.set('sort', 'id');
+		url.searchParams.set('order', 'DESC');
+		return fetch(url, { credentials: 'same-origin' })
+			.then((resp) => (resp.ok ? resp.text() : Promise.reject(resp.status)))
+			.then((html) => new DOMParser().parseFromString(html, 'text/html'));
+	}
+
+	function roll() {
+		if (rolling) {
+			return;
+		}
+		rolling = true;
+		document.querySelectorAll('.sr-dice').forEach((d) => d.classList.add('sr-rolling'));
+		// Articles already looked at this visit are skipped: they're about to be marked read anyway
+		const seen = Object.keys(load(QUEUE_KEY, {}));
+		post(cfg.urls.shuffle, [
+			...viewParams(),
+			...seen.map((id) => ['seen[]', id]),
+			...dealt.map((id) => ['previous[]', id]),
+		]).then((json) => {
+			if (!json.ids || json.ids.length === 0) {
+				notify(cfg.i18n.nothing_to_shuffle);
+				return;
+			}
+			return fetchEntries(json.ids).then((doc) => deal(doc, json.ids));
+		}).catch(() => {
+			notify(cfg.i18n.shuffle_failed);
+		}).finally(() => {
+			rolling = false;
+			// let the spin finish its turn
+			setTimeout(() => document.querySelectorAll('.sr-dice').forEach((d) => d.classList.remove('sr-rolling')), 400);
+		});
+	}
+
+	function deal(doc, ids) {
+		const stream = document.getElementById('stream');
+		const byId = new Map();
+		doc.querySelectorAll('#stream .flux').forEach((flux) => byId.set(flux.dataset.entry, flux));
+		const fluxes = ids.filter((id) => byId.has(id)).map((id) => document.adoptNode(byId.get(id)));
+		if (fluxes.length === 0) {
+			notify(cfg.i18n.nothing_to_shuffle);
+			return;
+		}
+		dealt = fluxes.map((flux) => flux.dataset.entry);
+		fluxes.forEach((flux) => {
+			if (typeof window.enforce_referrer_allowlist === 'function') {
+				window.enforce_referrer_allowlist(flux);
+			}
+		});
+
+		if (!shuffled) {
+			shuffled = true;
+			stream.classList.add('sr-shuffled');
+			document.querySelectorAll('.sr-dice').forEach((d) => d.classList.add('active'));
+			// Turn off endless scrolling, or reaching the bottom would append the next page of the normal stream
+			const loadMore = document.getElementById('load_more');
+			if (loadMore) {
+				loadMore.remove();
+				if (typeof window.init_load_more === 'function') {
+					window.init_load_more(stream);
+				}
+			}
+		}
+
+		// Same-day separators mean nothing in a shuffle
+		stream.querySelectorAll('.flux, .transition, .sr-shuffle-bar, .sr-shuffle-footer').forEach((el) => el.remove());
+		const feeds = new Set(fluxes.map((flux) => flux.dataset.feed)).size;
+		stream.prepend(shuffleBar(fmt(cfg.i18n.shuffled, fluxes.length, feeds)));
+		const footer = stream.querySelector('.stream-footer');
+		fluxes.forEach((flux) => stream.insertBefore(flux, footer));
+		stream.insertBefore(shuffleFooter(), footer);
+		document.scrollingElement.scrollTop = 0;
+	}
+
+	function backLink() {
+		const back = document.createElement('a');
+		back.href = location.href.split('#')[0];   // the page as it was: a reload ends the shuffle
+		back.textContent = cfg.i18n.back_to_newest;
+		return back;
+	}
+
+	function shuffleBar(text) {
+		const bar = document.createElement('div');
+		bar.className = 'sr-shuffle-bar';
+		const label = document.createElement('span');
+		label.textContent = '🎲 ' + text;
+		bar.append(label, backLink());
+		return bar;
+	}
+
+	function shuffleFooter() {
+		const box = document.createElement('div');
+		box.className = 'sr-shuffle-footer';
+		const again = document.createElement('button');
+		again.type = 'button';
+		again.className = 'btn sr-roll-again';
+		again.textContent = '🎲 ' + cfg.i18n.roll_again;
+		again.addEventListener('click', roll);
+		box.append(again, backLink());
+		return box;
+	}
+
+	function onDiceClick(ev) {
+		const dice = ev.target.closest('.sr-dice');
+		if (!dice || ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) {
+			return;   // modified clicks keep the link: FreshRSS's own random order, e.g. in a new tab
+		}
+		ev.preventDefault();
+		roll();
 	}
 
 	// ---- visits and commits ----
@@ -188,7 +364,7 @@
 	}
 
 	function renderCaughtUp() {
-		if (!context.hide_posts || document.getElementById('load_more')) {
+		if (!context.hide_posts || shuffled || document.getElementById('load_more')) {
 			return;   // only at the real end of an unread-only stream
 		}
 		const host = document.querySelector('#stream .stream-footer-inner') || document.getElementById('noArticlesToShow');
@@ -216,7 +392,12 @@
 		const wrap = document.createElement('div');
 		wrap.className = 'sr-rewind-wrap';
 		wrap.append(rewindButton());
-		aside.insertBefore(wrap, aside.querySelector('#sidebar'));
+		const tree = aside.querySelector('#sidebar');   // newer FreshRSS wraps it in the mark-read form
+		if (tree) {
+			tree.before(wrap);
+		} else {
+			aside.append(wrap);
+		}
 	}
 
 	// ---- wiring ----
@@ -253,6 +434,10 @@
 			renderCaughtUp();
 		}).observe(stream, { childList: true, subtree: true });
 		renderCaughtUp();
+
+		document.addEventListener('click', onDiceClick);
+		document.addEventListener('click', onLinkClick);
+		document.addEventListener('auxclick', onLinkClick);   // middle click
 
 		setInterval(tick, TICK_MS);
 		touch();
