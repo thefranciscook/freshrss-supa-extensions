@@ -2,6 +2,7 @@
 
 A distraction-free layout for FreshRSS. It's designed for the Origine theme and the reader view; mockups are in `docs/minimal ui/`.
 
+- **Opens in the reader view.** Enabling the extension sets FreshRSS's default view (Settings → Reading → Default view) to the reader view, once. Pick another view there and it sticks. Disabling the extension puts back the view you had before, unless you've changed it since.
 - **No header bar.** The search box, refresh and settings (gear) move to the top of the sidebar.
 - **The toolbar folds into the sidebar.** Mark as read and the view switcher live there too. The top bar keeps only the ☰ menu button on the left, with filter and sort on the right. On phones (≤ 840px), filter and sort also go into the sidebar.
 - **One filter menu.** The read, unread, starred and non-starred toggles share a single dropdown with your user queries, so the user-query shortcut still works.
@@ -16,6 +17,7 @@ The colours only apply in dark mode (Display → dark mode "auto", with a dark O
 
 | File | Role |
 |---|---|
+| `extension.php` | Sets the reader view as the default view once and remembers the previous one (`reader_default` in the extension's user settings), so disabling the extension can restore it. |
 | `static/minimal.css` | Most of the work. It targets reading pages with `body:has(#aside_feed.aside_feed)`. |
 | `static/minimal.js` | Moves existing elements around instead of copying them, so FreshRSS's handlers, ids and shortcuts keep working. Also renders relative dates (including articles loaded later) and sets `data-mui-day` on `<html>`. |
 | `static/fonts.css`, `fonts/`, `Controllers/MinimalUIController.php` | FreshRSS sends `Content-Security-Policy: default-src 'self'`, and `ext.php` won't serve `.woff2` files. So the fonts are served by `?c=MinimalUI&a=font&f=…`. Fira Sans is under the OFL (`fonts/OFL.txt`). |
