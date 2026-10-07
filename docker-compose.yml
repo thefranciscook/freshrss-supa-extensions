@@ -23,6 +23,8 @@ services:
       TZ: Europe/Budapest
       # Disable the cron feed refresh during dev; use `make refresh` instead.
       CRON_MIN: ""
+      # For the Listen extension: OPENAI_API_KEY=sk-... make up
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # Auto-install on FIRST start only (SQLite, no external DB needed).
       FRESHRSS_INSTALL: |-
         --api-enabled

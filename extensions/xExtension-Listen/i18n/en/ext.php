@@ -1,0 +1,38 @@
+<?php
+
+return [
+	'listen' => [
+		'listen' => 'Listen: read this view aloud',
+		'play' => 'Play',
+		'pause' => 'Pause',
+		'next' => 'Next article',
+		'previous' => 'Previous article',
+		'close' => 'Stop',
+		'speed' => 'Speed',
+		'ai_voice' => 'AI voice',
+		'play_this' => 'Listen to this article',
+		'nothing' => 'Nothing to listen to here: no full-text articles in this view',
+		'finished' => 'That’s everything in this view',
+		'no_key' => 'Listen needs an OpenAI API key: set OPENAI_API_KEY on the server, or add one in the extension settings',
+		'cap_reached' => 'Today’s Listen spending cap is reached',
+		'failed' => 'Couldn’t read this article aloud, skipping it',
+		'continues' => 'The rest of this article is on the website.',
+		// settings
+		'intro' => 'Press the headphones button and the current view is read aloud in feed order, like a podcast queue. Only full-text articles are read: no “Read more” excerpts, at least a few real paragraphs, mostly text. Each article gets a different voice.',
+		'key' => 'OpenAI API key',
+		'key_env' => 'Set on the server (OPENAI_API_KEY). ✓',
+		'key_saved' => 'Saved in these settings. Leave empty to keep it.',
+		'key_missing' => 'Not set. Best set on the server as the OPENAI_API_KEY environment variable; or paste one here.',
+		'forget_key' => 'Remove the saved key',
+		'instructions' => 'Speaking style',
+		'instructions_help' => 'How the voice should read, in plain words. Applies to the gpt-4o-mini-tts model.',
+		'min_paragraphs' => 'Read articles with at least this many paragraphs (of 25+ words)',
+		'min_words' => 'and at least this many words',
+		'max_words' => 'Stop reading after this many words',
+		'daily_cap' => 'Daily spending cap in US dollars (estimated, 0 = no cap)',
+		'spent_today' => 'Spent today: about $%s. Roughly $0.90 per hour of listening.',
+		'keep_days' => 'Delete generated audio after this many days without being played',
+		'mark_read' => 'Mark an article read when it has been read aloud',
+		'disclosure' => 'The voices are AI-generated; the player says so.',
+	],
+];

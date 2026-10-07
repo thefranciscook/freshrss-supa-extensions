@@ -1,0 +1,190 @@
+/*
+ * Listen. Colours come from Minimal UI's variables when it's on, from the theme's otherwise.
+ */
+
+/*=== Top bar button: headphones, highlighted while a session is on */
+.listen-play .icon {
+	display: block;
+	width: 16px;
+	height: 16px;
+}
+
+/*=== 🎧 badge in front of the titles of articles worth listening to */
+.listen-badge {
+	margin: 0 0.35rem 0 0;
+	padding: 0 0.15rem;
+	border: 0;
+	background: transparent;
+	font-size: 0.9em;
+	line-height: 1;
+	cursor: pointer;
+	opacity: 0.55;
+	vertical-align: baseline;
+	transition: opacity 0.15s, transform 0.15s;
+}
+
+.listen-badge:hover,
+.listen-badge:focus-visible {
+	opacity: 1;
+	transform: scale(1.15);
+}
+
+.flux.listen-current .listen-badge {
+	opacity: 1;
+	animation: listen-pulse 1.6s ease-in-out infinite;
+}
+
+.flux_header .listen-badge-item {
+	flex: none;
+	display: flex;
+	align-items: center;
+	width: auto;
+	padding: 0 0 0 0.25rem;
+}
+
+.flux_header .listen-badge-item .listen-badge {
+	margin: 0;
+}
+
+@keyframes listen-pulse {
+	50% { transform: scale(1.2); }
+}
+
+/* The article being read */
+.flux.listen-current {
+	scroll-margin-top: 3.5rem;
+	box-shadow: inset 3px 0 0 var(--mui-link, var(--frss-font-color-link, #0062be));
+}
+
+/*=== Player bar */
+.listen-bar {
+	position: fixed;
+	left: 50%;
+	bottom: 0.75rem;
+	transform: translateX(-50%);
+	z-index: 1000;
+	width: min(40rem, calc(100% - 1.5rem));
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
+	padding: 0.5rem 0.5rem 0.5rem 0.25rem;
+	overflow: hidden;
+	border-radius: 12px;
+	border: 1px solid var(--mui-divider, var(--frss-border-color, rgba(0, 0, 0, 0.12)));
+	background: var(--mui-bg-raised, var(--frss-background-color, #fff));
+	color: var(--mui-text, var(--frss-font-color-dark, #222));
+	box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+	font-size: 0.9rem;
+}
+
+.listen-bar[hidden] {
+	display: none;
+}
+
+.listen-progress {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 0;
+	height: 2px;
+	background: transparent;
+}
+
+.listen-progress span {
+	display: block;
+	width: 0;
+	height: 100%;
+	background: var(--mui-link, var(--frss-font-color-link, #0062be));
+	transition: width 0.25s linear;
+}
+
+.listen-btn {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.25rem;
+	height: 2.25rem;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+}
+
+.listen-btn:hover {
+	background: var(--mui-divider, rgba(127, 127, 127, 0.15));
+}
+
+.listen-toggle {
+	background: var(--mui-text, var(--frss-font-color-dark, #222));
+	color: var(--mui-bg-raised, var(--frss-background-color, #fff));
+}
+
+.listen-toggle:hover {
+	background: var(--mui-text, var(--frss-font-color-dark, #222));
+	opacity: 0.85;
+}
+
+.listen-loading .listen-toggle svg {
+	animation: listen-pulse 1s ease-in-out infinite;
+}
+
+.listen-info {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	padding: 0 0.5rem;
+	line-height: 1.3;
+}
+
+.listen-title {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	font-weight: 600;
+	color: inherit;
+	text-decoration: none;
+}
+
+.listen-meta {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	font-size: 0.8rem;
+	color: var(--mui-text-muted, var(--frss-font-color-grey-dark, #666));
+}
+
+.listen-speed {
+	flex: none;
+	width: auto;
+	min-width: 0;
+	margin: 0;
+	padding: 0.2rem 0.3rem;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	color: inherit;
+	font-size: 0.8rem;
+}
+
+/* Room under the last article so the bar doesn't cover it */
+html.listen-active #stream {
+	padding-bottom: 5rem;
+}
+
+@media (max-width: 480px) {
+	.listen-prev {
+		display: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.flux.listen-current .listen-badge,
+	.listen-loading .listen-toggle svg {
+		animation: none;
+	}
+}
