@@ -1,0 +1,68 @@
+<?php
+/** @var ListenExtension $this */
+?>
+<form action="<?= _url('extension', 'configure', 'e', urlencode($this->getName())) ?>" method="post">
+	<input type="hidden" name="_csrf" value="<?= FreshRSS_Auth::csrfToken() ?>" />
+
+	<p><?= _t('ext.listen.intro') ?></p>
+	<p class="help"><?= _t('ext.listen.disclosure') ?></p>
+
+	<div class="form-group">
+		<label class="group-name" for="api_key"><?= _t('ext.listen.key') ?></label>
+		<div class="group-controls">
+			<?php if ($this->apiKeyFromEnv()) { ?>
+				<p><?= _t('ext.listen.key_env') ?></p>
+			<?php } else { ?>
+				<input type="password" name="api_key" id="api_key" value="" autocomplete="off" placeholder="sk-…" />
+				<?php if ($this->apiKey() !== '') { ?>
+					<p class="help"><?= _t('ext.listen.key_saved') ?></p>
+					<label class="checkbox"><input type="checkbox" name="forget_key" value="1" /> <?= _t('ext.listen.forget_key') ?></label>
+				<?php } else { ?>
+					<p class="help"><?= _t('ext.listen.key_missing') ?></p>
+				<?php } ?>
+			<?php } ?>
+		</div>
+	</div>
+
+	<div class="form-group">
+		<label class="group-name" for="instructions"><?= _t('ext.listen.instructions') ?></label>
+		<div class="group-controls">
+			<textarea name="instructions" id="instructions" rows="3"><?= htmlspecialchars((string)$this->setting('instructions'), ENT_NOQUOTES, 'UTF-8') ?></textarea>
+			<p class="help"><?= _t('ext.listen.instructions_help') ?></p>
+		</div>
+	</div>
+
+	<?php foreach ([
+		'min_paragraphs' => ['min' => 1, 'step' => 1],
+		'min_words' => ['min' => 0, 'step' => 50],
+		'max_words' => ['min' => 100, 'step' => 100],
+		'daily_cap' => ['min' => 0, 'step' => 0.5],
+		'keep_days' => ['min' => 1, 'step' => 1],
+	] as $key => $attrs) { ?>
+	<div class="form-group">
+		<label class="group-name" for="<?= $key ?>"><?= _t('ext.listen.' . $key) ?></label>
+		<div class="group-controls">
+			<input type="number" name="<?= $key ?>" id="<?= $key ?>" min="<?= $attrs['min'] ?>" step="<?= $attrs['step'] ?>"
+				value="<?= htmlspecialchars((string)$this->setting($key), ENT_COMPAT, 'UTF-8') ?>" />
+			<?php if ($key === 'daily_cap') { ?>
+				<p class="help"><?= _t('ext.listen.spent_today', number_format($this->spentToday(), 2)) ?></p>
+			<?php } ?>
+		</div>
+	</div>
+	<?php } ?>
+
+	<div class="form-group">
+		<div class="group-controls">
+			<label class="checkbox" for="mark_read">
+				<input type="checkbox" name="mark_read" id="mark_read" value="1"<?= $this->setting('mark_read') ? ' checked="checked"' : '' ?> />
+				<?= _t('ext.listen.mark_read') ?>
+			</label>
+		</div>
+	</div>
+
+	<div class="form-group form-actions">
+		<div class="group-controls">
+			<button type="submit" class="btn btn-important"><?= _t('gen.action.submit') ?></button>
+		</div>
+	</div>
+</form>

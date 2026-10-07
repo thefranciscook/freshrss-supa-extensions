@@ -1,0 +1,8 @@
+{
+  "name": "Listen",
+  "author": "Szilard Szakacs",
+  "description": "Press play and your feed is read aloud like a podcast: full-text articles in feed order, each in a different AI voice (OpenAI), marked read when finished.",
+  "version": "0.1.0",
+  "entrypoint": "Listen",
+  "type": "user"
+}
