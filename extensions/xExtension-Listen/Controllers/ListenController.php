@@ -44,12 +44,16 @@ final class FreshExtension_Listen_Controller extends FreshRSS_ActionController {
 		foreach (FreshRSS_Factory::createEntryDao()->listByIds($ids) as $entry) {
 			$article = $ext->article($entry);
 			$reason = $ext->rejection($article);
+			$parts = $reason === null ? $ext->parts($entry, $article) : [];
 			$feed = $entry->feed();
 			$items[] = [
 				'id' => $entry->id(),
 				'ok' => $reason === null,
 				'reason' => $reason,
-				'parts' => $reason === null ? count($ext->parts($entry, $article)) : 0,
+				'parts' => count($parts),
+				// The first words of each piece, so the player can highlight what's being read (piece 0 starts with the title)
+				'starts' => array_map(static fn(string $part, int $i) => $i === 0 ? '' :
+					implode(' ', array_slice(preg_split('/\s+/u', strtok($part, "\n")) ?: [], 0, 8)), $parts, array_keys($parts)),
 				'words' => $article->wordCount(),
 				'title' => html_entity_decode(strip_tags($entry->title()), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
 				'feed' => $feed === null ? '' : html_entity_decode($feed->name(), ENT_QUOTES | ENT_HTML5, 'UTF-8'),

@@ -56,6 +56,15 @@
 	box-shadow: inset 3px 0 0 var(--mui-link, var(--frss-font-color-link, #0062be));
 }
 
+/* Read-along: the paragraphs being read right now */
+.listen-reading {
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--mui-link, var(--frss-font-color-link, #0062be)) 9%, transparent);
+	box-shadow: 0 0 0 0.35rem color-mix(in srgb, var(--mui-link, var(--frss-font-color-link, #0062be)) 9%, transparent);
+	scroll-margin: 5rem 0 6rem;
+	transition: background-color 0.4s, box-shadow 0.4s;
+}
+
 /*=== Player bar */
 .listen-bar {
 	position: fixed;

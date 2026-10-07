@@ -10,6 +10,8 @@
  *   while one plays, the other already loads the next piece, so there is no gap and at most one piece is paid ahead.
  * - At the end of the loaded articles it asks FreshRSS to load more, and carries on.
  * - Each episode gets a voice of its own (never the same as the one before); finished episodes are marked read.
+ * - Read-along: where the article's text is on screen (reader view, or an article opened in the list), the
+ *   paragraphs being read are highlighted and scrolled to, as long as you're following along (not scrolled away).
  */
 (function () {
 	const SPEED_KEY = 'listen.speed';
@@ -127,7 +129,7 @@
 	function episode(flux, previousVoice) {
 		const plan = plans.get(flux.dataset.entry);
 		return {
-			id: plan.id, parts: plan.parts, title: plan.title, feed: plan.feed,
+			id: plan.id, parts: plan.parts, starts: plan.starts || [], title: plan.title, feed: plan.feed,
 			voice: voiceFor(plan.id, previousVoice), index: fluxes().indexOf(flux),
 		};
 	}
@@ -236,6 +238,7 @@
 
 	function playEpisode(e, p) {
 		const isNew = !ep || ep.id !== e.id;
+		const follow = following();
 		ep = e;
 		part = p;
 		A().pause();
@@ -250,8 +253,9 @@
 			render();   // e.g. autoplay blocked: show the play button; load errors arrive as 'error' events
 		});
 		if (isNew) {
-			episodeStarted();
+			episodeStarted(follow);
 		}
+		readAlong(follow && !isNew);
 		render();
 		prefetch();
 	}
@@ -385,6 +389,7 @@
 			p.load();
 		});
 		document.querySelectorAll('.listen-current').forEach((flux) => flux.classList.remove('listen-current'));
+		document.querySelectorAll('.listen-reading').forEach((el) => el.classList.remove('listen-reading'));
 		ep = null;
 		if (bar) {
 			bar.hidden = true;
@@ -396,12 +401,14 @@
 		render();
 	}
 
-	function episodeStarted() {
+	function episodeStarted(follow) {
 		document.querySelectorAll('.listen-current').forEach((flux) => flux.classList.remove('listen-current'));
 		const flux = fluxOf(ep.id);
 		if (flux) {
 			flux.classList.add('listen-current');
-			flux.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			if (follow) {
+				flux.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			}
 		}
 		if ('mediaSession' in navigator && typeof MediaMetadata === 'function') {
 			const icon = flux && flux.querySelector('img.favicon');
@@ -411,6 +418,72 @@
 				album: 'FreshRSS · ' + cfg.i18n.ai_voice + ' (' + ep.voice + ')',
 				artwork: icon ? [{ src: new URL(icon.getAttribute('src'), location.href).href }] : [],
 			});
+		}
+	}
+
+	// ---- read-along ----
+
+	function inView(el) {
+		const r = el.getBoundingClientRect();
+		return r.height > 0 && r.bottom > 0 && r.top < window.innerHeight;
+	}
+
+	// Following along = what's being read is still on screen (or nothing is playing yet); scrolled away = leave the page alone
+	function following() {
+		const reading = document.querySelector('.listen-reading');
+		if (reading && reading.offsetParent !== null) {
+			return inView(reading);
+		}
+		const flux = ep && fluxOf(ep.id);
+		return !flux || inView(flux);
+	}
+
+	function words(text) {
+		return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+	}
+
+	function blocksOf(flux) {
+		const text = flux.querySelector('.text');
+		return text ? [...text.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6, dd, dt, blockquote:not(:has(p))')] : [];
+	}
+
+	// The paragraph where each piece starts, found by the piece's first words (searching forward, so repeats don't confuse it)
+	function pieceStarts(e, flux) {
+		if (e.blocks && e.blocks[0] && e.blocks[0].isConnected) {
+			return e.pieceStart;
+		}
+		e.blocks = blocksOf(flux);
+		const texts = e.blocks.map((b) => words(b.textContent));
+		e.pieceStart = [0];
+		let from = 0;
+		for (let k = 1; k < e.parts; k++) {
+			const snippet = words(e.starts[k] || '');
+			const found = snippet ? texts.findIndex((t, i) => i >= from && t.includes(snippet)) : -1;
+			e.pieceStart.push(found);
+			if (found >= 0) {
+				from = found;
+			}
+		}
+		return e.pieceStart;
+	}
+
+	function readAlong(scroll) {
+		document.querySelectorAll('.listen-reading').forEach((el) => el.classList.remove('listen-reading'));
+		const flux = ep && fluxOf(ep.id);
+		if (!flux) {
+			return;
+		}
+		const starts = pieceStarts(ep, flux);
+		const start = starts[part];
+		if (start === undefined || start < 0 || ep.blocks.length === 0) {
+			return;
+		}
+		const next = starts.slice(part + 1).find((i) => i >= 0);
+		const end = next === undefined ? ep.blocks.length : Math.max(next, start + 1);
+		const span = ep.blocks.slice(start, end).filter((el) => el.offsetParent !== null);   // hidden in a closed article: nothing to show
+		span.forEach((el) => el.classList.add('listen-reading'));
+		if (scroll && span.length > 0) {
+			span[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
 		}
 	}
 
