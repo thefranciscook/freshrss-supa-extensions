@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/lib/Article.php';
 require_once __DIR__ . '/lib/AudioCache.php';
+require_once __DIR__ . '/lib/Pace.php';
 
 /**
  * Listen: press play and FreshRSS reads the current view aloud, like a podcast queue.
  *
  * static/listen.js walks the articles in feed order and plays the ones worth listening to (full text,
  * no "Read more", at least a few real paragraphs; see lib/Article.php), each in a different voice.
- * The audio comes from OpenAI's speech API through ?c=Listen&a=audio, piece by piece and streamed,
- * so playback starts within a second or two and only what you listen to (plus the next piece) is paid for.
+ * The audio comes from OpenAI's speech API through ?c=Listen&a=audio, piece by piece (each about 45 s at most,
+ * generated and checked for cut-offs before it's played), so only what you listen to (plus the next piece) is paid for.
  * The API key stays on the server: the OPENAI_API_KEY environment variable, or the settings as a fallback.
  */
 final class ListenExtension extends Minz_Extension {
@@ -36,7 +37,7 @@ final class ListenExtension extends Minz_Extension {
 		parent::init();
 		$this->registerTranslates();
 
-		// ?c=Listen&a=plan|audio
+		// ?c=Listen&a=plan|audio|status|silence
 		$this->registerController('Listen');
 
 		$this->registerHook(Minz_HookType::JsVars, [$this, 'jsVars']);
@@ -74,6 +75,10 @@ final class ListenExtension extends Minz_Extension {
 
 	public function cache(): Listen_AudioCache {
 		return new Listen_AudioCache(CACHE_PATH . '/listen/' . (Minz_User::name() ?? '_'));
+	}
+
+	public function pace(): Listen_Pace {
+		return new Listen_Pace($this->cache()->paceFile());
 	}
 
 	public function today(): string {
@@ -118,6 +123,7 @@ final class ListenExtension extends Minz_Extension {
 				'plan' => Minz_Url::display(['c' => 'Listen', 'a' => 'plan'], 'php'),
 				'audio' => Minz_Url::display(['c' => 'Listen', 'a' => 'audio'], 'php'),
 				'status' => Minz_Url::display(['c' => 'Listen', 'a' => 'status'], 'php'),
+				'silence' => Minz_Url::display(['c' => 'Listen', 'a' => 'silence'], 'php'),
 				'configure' => Minz_Url::display(['c' => 'extension', 'a' => 'configure', 'params' => ['e' => $this->getName()]], 'php'),
 			],
 			'i18n' => [

@@ -70,13 +70,13 @@ for ($i = 0; $i < 12; $i++) {
 }
 $parts = Listen_Article::fromHtml($long)->parts('Title', 'Feed', 5000, '');
 $lengths = array_map('mb_strlen', $parts);
-check('first piece is short for a fast start', $lengths[0] <= 600, json_encode($lengths) ?: '');
-check('other pieces stay under the limit', max($lengths) <= 1500, json_encode($lengths) ?: '');
+check('first piece is short for a fast start', $lengths[0] <= 300, json_encode($lengths) ?: '');
+check('other pieces stay under ~45 s of speech', max($lengths) <= 700, json_encode($lengths) ?: '');
 check('nothing lost', array_sum(array_map(fn($p) => Listen_Article::words($p), $parts)) === 600 + 2);
 
 $endless = Listen_Article::fromHtml('<p>' . implode(' ', array_fill(0, 800, 'word')) . '</p>');
-$lengths = array_map('mb_strlen', $endless->parts('T', '', 5000, '', 600, 1500));
-check('a sentence without full stops is cut at spaces', max($lengths) <= 1500, json_encode($lengths) ?: '');
+$lengths = array_map('mb_strlen', $endless->parts('T', '', 5000, ''));
+check('a sentence without full stops is cut at spaces', max($lengths) <= 700, json_encode($lengths) ?: '');
 
 $parts = Listen_Article::fromHtml($long)->parts('Title', 'Feed', 200, 'The rest is on the website.');
 check('long articles stop at max words', str_ends_with(end($parts) ?: '', 'The rest is on the website.')

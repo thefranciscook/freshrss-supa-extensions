@@ -40,10 +40,35 @@ final class Listen_AudioCache {
 		}
 	}
 
+	/**
+	 * One generation per piece: whoever holds the lock generates, everyone else asking for the same piece
+	 * (a prefetch and the player, or a browser's range requests) waits and then gets that same file.
+	 * @return resource|null
+	 */
+	public function lock(string $key) {
+		$fh = fopen($this->path($key) . '.lock', 'c');
+		if ($fh === false || !flock($fh, LOCK_EX)) {
+			return null;
+		}
+		return $fh;
+	}
+
+	/** @param resource|null $lock */
+	public function unlock($lock): void {
+		if (is_resource($lock)) {
+			flock($lock, LOCK_UN);
+			fclose($lock);
+		}
+	}
+
+	public function paceFile(): string {
+		return $this->dir . '/pace.json';
+	}
+
 	/** Deletes audio not played for $days days, and leftovers of interrupted downloads. */
 	public function prune(int $days, int $now): int {
 		$deleted = 0;
-		foreach (['/*.mp3' => $days * 86400, '/tmp-*.part' => 3600] as $pattern => $maxAge) {
+		foreach (['/*.mp3' => $days * 86400, '/tmp-*.part' => 3600, '/*.lock' => 86400] as $pattern => $maxAge) {
 			foreach (glob($this->dir . $pattern) ?: [] as $file) {
 				if ($now - (int)filemtime($file) > $maxAge && unlink($file)) {
 					$deleted++;
