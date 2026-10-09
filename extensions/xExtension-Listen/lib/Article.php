@@ -42,9 +42,10 @@ final class Listen_Article {
 		foreach (['img', 'iframe', 'video', 'audio'] as $tag) {
 			$article->media += $root->getElementsByTagName($tag)->length;
 		}
-		foreach ($root->getElementsByTagName('a') as $a) {
+		foreach (iterator_to_array($root->getElementsByTagName('a')) as $a) {
 			if (self::words($a->textContent) <= 8 && preg_match(self::READ_MORE, trim($a->textContent)) === 1) {
 				$article->readMore = true;
+				$a->parentNode?->removeChild($a);   // "Read more" isn't read out (when an excerpt is played on request)
 			}
 		}
 		foreach (self::SKIP as $tag) {
@@ -57,9 +58,10 @@ final class Listen_Article {
 		$article->blocks = array_values(array_filter($article->blocks, fn($b) => !self::isJunk($b['text'])));
 
 		// WordPress excerpts end in "[…]"
-		$last = end($article->blocks);
-		if ($last !== false && preg_match('/(\[(…|\.\.\.)\]|\[&hellip;\])\s*$/u', $last['text']) === 1) {
+		$last = count($article->blocks) - 1;
+		if ($last >= 0 && preg_match('/\s*(\[(…|\.\.\.)\]|\[&hellip;\])\s*$/u', $article->blocks[$last]['text']) === 1) {
 			$article->readMore = true;
+			$article->blocks[$last]['text'] = rtrim(preg_replace('/\s*(\[(…|\.\.\.)\]|\[&hellip;\])\s*$/u', '', $article->blocks[$last]['text']) ?? '') . '…';
 		}
 		return $article;
 	}
@@ -113,6 +115,11 @@ final class Listen_Article {
 		return preg_match_all('/[\p{L}\p{N}]+/u', $text);
 	}
 
+	/** Anything to read at all (besides the title)? Any article with text can be played on request. */
+	public function hasText(): bool {
+		return $this->blocks !== [];
+	}
+
 	public function wordCount(): int {
 		return array_sum(array_map(fn($b) => self::words($b['text']), $this->blocks));
 	}
@@ -140,6 +147,7 @@ final class Listen_Article {
 	 * The text in pieces for the speech API: a short first one so playback starts fast, then pieces of
 	 * up to $chars characters (about 45 seconds of speech), cut between paragraphs, or between sentences
 	 * in very long paragraphs. gpt-4o-mini-tts gets unreliable on longer inputs (drops the end, adds silences).
+	 * An excerpt (played on request) ends with $continues, like an article cut at $maxWords.
 	 * @return list<string>
 	 */
 	public function parts(string $title, string $feed, int $maxWords, string $continues, int $firstChars = 300, int $chars = 700): array {
@@ -149,11 +157,13 @@ final class Listen_Article {
 			$text = $block['heading'] ? self::sentence($block['text']) : $block['text'];
 			$words = self::words($text);
 			if ($words > $budget) {
-				$paragraphs[] = $continues;
 				break;
 			}
 			$paragraphs[] = $text;
 			$budget -= $words;
+		}
+		if ($this->readMore || count($paragraphs) - 1 < count($this->blocks)) {
+			$paragraphs[] = $continues;
 		}
 
 		$parts = [];

@@ -49,7 +49,8 @@ final class FreshExtension_Listen_Controller extends FreshRSS_ActionController {
 		foreach (FreshRSS_Factory::createEntryDao()->listByIds($ids) as $entry) {
 			$article = $ext->article($entry);
 			$reason = $ext->rejection($article);
-			$parts = $reason === null ? $ext->parts($entry, $article) : [];
+			// Every article with text can be played on request (its 🎧); only the ones that are 'ok' are played on their own
+			$parts = $article->hasText() ? $ext->parts($entry, $article) : [];
 			$feed = $entry->feed();
 			$items[] = [
 				'id' => $entry->id(),
@@ -106,7 +107,7 @@ final class FreshExtension_Listen_Controller extends FreshRSS_ActionController {
 		}
 		$article = $ext->article($entry);
 		$parts = $ext->parts($entry, $article);
-		if ($ext->rejection($article) !== null || !isset($parts[$part])) {
+		if (!$article->hasText() || !isset($parts[$part])) {
 			$this->fail(404, 'Nothing to read');
 		}
 		$text = $parts[$part];

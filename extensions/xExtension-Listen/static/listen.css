@@ -23,6 +23,10 @@
 	transition: opacity 0.15s, transform 0.15s;
 }
 
+.listen-badge.listen-badge-skipped {
+	opacity: 0.3;   /* excerpts and short posts: played only when you ask */
+}
+
 .listen-badge:hover,
 .listen-badge:focus-visible {
 	opacity: 1;

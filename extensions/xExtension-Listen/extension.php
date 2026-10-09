@@ -136,6 +136,8 @@ final class ListenExtension extends Minz_Extension {
 				'speed' => _t('ext.listen.speed'),
 				'ai_voice' => _t('ext.listen.ai_voice'),
 				'play_this' => _t('ext.listen.play_this'),
+				'play_excerpt' => _t('ext.listen.play_excerpt'),
+				'play_short' => _t('ext.listen.play_short'),
 				'nothing' => _t('ext.listen.nothing'),
 				'finished' => _t('ext.listen.finished'),
 				'no_key' => _t('ext.listen.no_key'),

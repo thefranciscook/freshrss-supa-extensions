@@ -4,8 +4,9 @@
  * Listen: the player.
  *
  * - The headphones button (top bar) plays the current view from the first article on screen (or the open one),
- *   in feed order. Articles the server says aren't worth listening to are skipped; worthwhile ones get a 🎧 badge
- *   that plays from that article.
+ *   in feed order. Articles the server says aren't worth listening to (excerpts, short posts) are skipped.
+ * - Every article with text has a 🎧 badge (fainter on the ones that would be skipped): it plays that article,
+ *   whatever it is, and then carries on with the worthwhile ones below it.
  * - Each article (an "episode") is played piece by piece from ?c=Listen&a=audio, always through the same single
  *   <audio> element (so two voices can never overlap). The server answers with complete, checked pieces only;
  *   while one piece plays, the next is already requested so it's ready when needed (at most one piece paid ahead).
@@ -91,14 +92,15 @@
 
 	function decorate(flux) {
 		const plan = plans.get(flux.dataset.entry);
-		if (!plan || !plan.ok || flux.querySelector('.listen-badge')) {
-			return;
+		if (!plan || !plan.parts || flux.querySelector('.listen-badge')) {
+			return;   // nothing to read (pictures only), or done already
 		}
-		flux.classList.add('listen-ok');
+		flux.classList.toggle('listen-ok', plan.ok);
 		const badge = document.createElement('button');
 		badge.type = 'button';
-		badge.className = 'listen-badge';
-		badge.title = cfg.i18n.play_this + ' (' + Math.max(1, Math.round(plan.words / 150)) + ' min)';
+		badge.className = 'listen-badge' + (plan.ok ? '' : ' listen-badge-skipped');
+		const label = plan.reason === 'read_more' ? cfg.i18n.play_excerpt : (plan.reason === 'too_short' ? cfg.i18n.play_short : cfg.i18n.play_this);
+		badge.title = label + ' (' + Math.max(1, Math.round(plan.words / 150)) + ' min)';
 		badge.setAttribute('aria-label', badge.title);
 		badge.textContent = '🎧';
 		const row = flux.querySelector('.flux_header .titleAuthorSummaryDate');
@@ -286,7 +288,11 @@
 		showBar();
 		render();
 		const list = fluxes();
-		findFrom(fromFlux ? Math.max(0, list.indexOf(fromFlux)) : startIndex(list), ep ? ep.voice : null).then((e) => {
+		const chosen = fromFlux && plans.get(fromFlux.dataset.entry);
+		// A 🎧 click plays that article even if it would be skipped otherwise; what follows it is chosen as usual
+		const first = chosen && chosen.parts ? Promise.resolve(episode(fromFlux, ep ? ep.voice : null))
+			: findFrom(fromFlux ? Math.max(0, list.indexOf(fromFlux)) : startIndex(list), ep ? ep.voice : null);
+		first.then((e) => {
 			if (!active) {
 				return;
 			}

@@ -11,6 +11,8 @@ return [
 		'speed' => 'Speed',
 		'ai_voice' => 'AI voice',
 		'play_this' => 'Listen to this article',
+		'play_excerpt' => 'Listen to this excerpt (the full article is on the website)',
+		'play_short' => 'Listen to this short post',
 		'nothing' => 'Nothing to listen to here: no full-text articles in this view',
 		'finished' => 'That’s everything in this view',
 		'no_key' => 'Listen needs an OpenAI API key: set OPENAI_API_KEY on the server, or add one in the extension settings',

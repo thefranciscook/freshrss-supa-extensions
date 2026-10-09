@@ -87,5 +87,17 @@ check('counts accented words', Listen_Article::words('Árvíztűrő tükörfúr�
 
 check('empty content', Listen_Article::fromHtml('')->rejection(3, 100) === 'too_short');
 
+// Played on request (the 🎧 on any article): excerpts are read without their "Read more" and say where the rest is
+$excerpt = Listen_Article::fromHtml('<p>The first lines of a post, cut short by the feed. <a href="x">Read more</a></p>');
+$text = implode("\n\n", $excerpt->parts('Title', 'Blog', 3000, 'The rest is on the website.'));
+check('an excerpt is playable on request', $excerpt->hasText() && $excerpt->rejection(3, 100) === 'read_more');
+check('…without reading "Read more", and says where the rest is',
+	$text === "Title. Blog.\n\nThe first lines of a post, cut short by the feed.\n\nThe rest is on the website.", json_encode($text) ?: '');
+$text = implode("\n\n", Listen_Article::fromHtml('<p>Opening words of a WordPress post […]</p>')->parts('T', '', 3000, 'More online.'));
+check('a WordPress […] excerpt ends with … instead of "bracket"', $text === "T.\n\nOpening words of a WordPress post…\n\nMore online.", json_encode($text) ?: '');
+$text = implode("\n\n", Listen_Article::fromHtml('<p>' . para(30) . '</p>')->parts('T', '', 3000, 'More online.'));
+check('a short but complete post is read as is', !str_contains($text, 'More online.'));
+check('pictures only: nothing to read', !Listen_Article::fromHtml('<p><img src="a.jpg"></p><figure><img src="b.jpg"><figcaption>A caption</figcaption></figure>')->hasText());
+
 echo $failures === 0 ? "\nall passed\n" : "\n$failures failed\n";
 exit($failures === 0 ? 0 : 1);
