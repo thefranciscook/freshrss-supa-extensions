@@ -223,7 +223,9 @@
 	}
 
 	// Asks the server for a piece and waits until it's generated and checked. The answer lands in the browser
-	// cache too, so the <audio> element gets it at once. Retries once, unless retrying can't help.
+	// cache too, so the <audio> element gets it at once. Retries once, unless retrying can't help. While another
+	// request is generating the same piece the server answers "202, not yet" at once (rather than tying up a PHP
+	// worker waiting), and this asks again a moment later.
 	function preparePiece(e, p) {
 		const key = pieceKey(e, p);
 		if (ready.has(key)) {
@@ -231,13 +233,20 @@
 		}
 		if (!pending.has(key)) {
 			const request = (async () => {
+				const giveUp = Date.now() + 120000;
 				for (let attempt = 0; ; attempt++) {
 					let status = 0;
 					let message = '';
 					try {
-						const resp = await fetch(audioUrl(e, p), { credentials: 'same-origin' });
+						const resp = await fetch(audioUrl(e, p), { credentials: 'same-origin', headers: { 'X-Listen-Prepare': '1' } });
 						status = resp.status;
-						if (resp.ok) {
+						if (status === 202 && Date.now() < giveUp) {
+							await resp.arrayBuffer().catch(() => null);
+							await new Promise((resolve) => setTimeout(resolve, 1000));
+							attempt--;   // being generated elsewhere: not a failure
+							continue;
+						}
+						if (status === 200 || status === 206) {
 							await resp.arrayBuffer();
 							ready.add(key);
 							return;

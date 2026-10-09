@@ -32,6 +32,8 @@ The OpenAI API key stays on the server. Either:
 
 Optional: `LISTEN_OPENAI_BASE_URL` points it at another OpenAI-compatible speech server instead of `https://api.openai.com/v1`.
 
+**PHP workers.** Generating a piece keeps one PHP worker busy for a few seconds (the request to OpenAI times out after 60 s). While you listen that's at most two at a time: the piece playing and the next one. A request for a piece that's already being generated is answered “not yet, ask again in a second” instead of waiting, so it never holds a worker. With PHP-FPM, `pm.max_children = 5` is enough for one listener; 8–10 leaves room for browsing at the same time.
+
 ## How it works
 
 | File | Role |

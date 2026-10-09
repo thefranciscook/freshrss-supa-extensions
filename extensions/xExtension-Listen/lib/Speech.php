@@ -35,7 +35,7 @@ final class Listen_Speech {
 			CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE) ?: '{}',
 			CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $this->apiKey, 'Content-Type: application/json'],
 			CURLOPT_CONNECTTIMEOUT => 10,
-			CURLOPT_TIMEOUT => 180,
+			CURLOPT_TIMEOUT => 60,   // a piece takes seconds; don't let a hung request hold a PHP worker for long
 			CURLOPT_HEADERFUNCTION => static function ($ch, string $header) use (&$status): int {
 				if (preg_match('~^HTTP/\S+\s+(\d{3})~', $header, $m) === 1) {
 					$status = (int)$m[1];

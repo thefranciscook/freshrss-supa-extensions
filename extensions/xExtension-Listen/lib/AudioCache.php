@@ -42,13 +42,17 @@ final class Listen_AudioCache {
 
 	/**
 	 * One generation per piece: whoever holds the lock generates, everyone else asking for the same piece
-	 * (a prefetch and the player, or a browser's range requests) waits and then gets that same file.
-	 * @return resource|null
+	 * gets that same file afterwards. With $wait = false, returns false at once when someone else holds it.
+	 * @return resource|false|null the lock, false when busy, null when locking isn't possible
 	 */
-	public function lock(string $key) {
+	public function lock(string $key, bool $wait) {
 		$fh = fopen($this->path($key) . '.lock', 'c');
-		if ($fh === false || !flock($fh, LOCK_EX)) {
+		if ($fh === false) {
 			return null;
+		}
+		if (!flock($fh, $wait ? LOCK_EX : LOCK_EX | LOCK_NB)) {
+			fclose($fh);
+			return false;
 		}
 		return $fh;
 	}
