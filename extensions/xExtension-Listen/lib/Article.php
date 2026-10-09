@@ -138,10 +138,11 @@ final class Listen_Article {
 
 	/**
 	 * The text in pieces for the speech API: a short first one so playback starts fast, then pieces of
-	 * up to $chars characters, cut between paragraphs (or sentences, for very long paragraphs).
+	 * up to $chars characters (about 45 seconds of speech), cut between paragraphs, or between sentences
+	 * in very long paragraphs. gpt-4o-mini-tts gets unreliable on longer inputs (drops the end, adds silences).
 	 * @return list<string>
 	 */
-	public function parts(string $title, string $feed, int $maxWords, string $continues, int $firstChars = 600, int $chars = 1500): array {
+	public function parts(string $title, string $feed, int $maxWords, string $continues, int $firstChars = 300, int $chars = 700): array {
 		$paragraphs = [self::sentence(trim($title)) . ($feed !== '' ? ' ' . self::sentence($feed) : '')];
 		$budget = $maxWords;
 		foreach ($this->blocks as $block) {

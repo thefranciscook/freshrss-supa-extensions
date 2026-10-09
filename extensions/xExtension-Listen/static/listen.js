@@ -6,8 +6,10 @@
  * - The headphones button (top bar) plays the current view from the first article on screen (or the open one),
  *   in feed order. Articles the server says aren't worth listening to are skipped; worthwhile ones get a 🎧 badge
  *   that plays from that article.
- * - Each article (an "episode") is fetched piece by piece from ?c=Listen&a=audio. Two <audio> elements take turns:
- *   while one plays, the other already loads the next piece, so there is no gap and at most one piece is paid ahead.
+ * - Each article (an "episode") is played piece by piece from ?c=Listen&a=audio, always through the same single
+ *   <audio> element (so two voices can never overlap). The server answers with complete, checked pieces only;
+ *   while one piece plays, the next is already requested so it's ready when needed (at most one piece paid ahead).
+ * - A watchdog restarts a piece that stalls, then gives up on the article rather than going quiet.
  * - At the end of the loaded articles it asks FreshRSS to load more, and carries on.
  * - Each episode gets a voice of its own (never the same as the one before); finished episodes are marked read.
  * - Read-along: where the article's text is on screen (reader view, or an article opened in the list), the
@@ -21,17 +23,20 @@
 	let cfg;
 	const plans = new Map();      // entry id -> { id, ok, reason, parts, title, feed }
 	const voiceOf = new Map();    // entry id -> voice it was given, so going back replays the same (cached) audio
-	const players = [new Audio(), new Audio()];
-	let cur = 0;                  // players[cur] is the one playing
-	let queued = null;            // { ep, part } loading in the other player
+	const STALL_CHECK_MS = 2000;
+	const STALL_LIMIT = 5;        // checks without progress (10 s) before a stalled piece is retried
+
+	const audio = new Audio();
+	const ready = new Set();      // pieces the server has (so playing them starts at once)
+	const pending = new Map();    // piece -> request getting it ready
+	let queued = null;            // { ep, part } coming up next, already being prepared
 	let ep = null;                // the episode playing: { id, parts, title, feed, voice, index }
 	let part = 0;
 	let active = false;
-	let prefetchToken = 0;
+	let loading = false;          // waiting for the server to prepare the piece
+	let playToken = 0;            // bumped on every move, so late answers for an old piece are ignored
+	let stall = { time: -1, count: 0, retried: false };
 	let bar;
-
-	const A = () => players[cur];
-	const B = () => players[1 - cur];
 
 	function load(key, fallback) {
 		try {
@@ -208,60 +213,121 @@
 			'&_csrf=' + encodeURIComponent(context.csrf);
 	}
 
+	function pieceKey(e, p) {
+		return e.id + '|' + p + '|' + e.voice;
+	}
+
 	function speed() {
 		const s = Number(load(SPEED_KEY, 1));
 		return SPEEDS.includes(s) ? s : 1;
 	}
 
-	async function start(fromFlux) {
+	// Asks the server for a piece and waits until it's generated and checked. The answer lands in the browser
+	// cache too, so the <audio> element gets it at once. Retries once, unless retrying can't help.
+	function preparePiece(e, p) {
+		const key = pieceKey(e, p);
+		if (ready.has(key)) {
+			return Promise.resolve();
+		}
+		if (!pending.has(key)) {
+			const request = (async () => {
+				for (let attempt = 0; ; attempt++) {
+					let status = 0;
+					let message = '';
+					try {
+						const resp = await fetch(audioUrl(e, p), { credentials: 'same-origin' });
+						status = resp.status;
+						if (resp.ok) {
+							await resp.arrayBuffer();
+							ready.add(key);
+							return;
+						}
+						message = await resp.json().then((j) => j.error || '').catch(() => '');
+					} catch (err) {
+						// network: worth another try
+					}
+					if (attempt >= 1 || [400, 403, 404, 429, 503].includes(status)) {
+						throw Object.assign(new Error(message || 'audio'), { status, message });
+					}
+					await new Promise((resolve) => setTimeout(resolve, 1500));
+				}
+			})();
+			pending.set(key, request);
+			request.catch(() => {}).finally(() => pending.delete(key));
+		}
+		return pending.get(key);
+	}
+
+	// A moment of silence played inside the click: phones only let a page start audio from a tap, and after that
+	// the same element may keep playing whatever it's given (also with the screen locked)
+	function unlockAudio() {
+		audio.src = cfg.urls.silence;
+		audio.dataset.piece = '';
+		audio.play().catch(() => {});
+	}
+
+	function start(fromFlux) {
 		if (!cfg.ready) {
 			notify(cfg.i18n.no_key);
 			return;
 		}
 		active = true;
+		loading = true;
+		unlockAudio();
 		showBar();
 		render();
-		try {
-			const list = fluxes();
-			const e = await findFrom(fromFlux ? Math.max(0, list.indexOf(fromFlux)) : startIndex(list), ep ? ep.voice : null);
-			if (!e) {
-				notify(cfg.i18n.nothing);
-				stop();
+		const list = fluxes();
+		findFrom(fromFlux ? Math.max(0, list.indexOf(fromFlux)) : startIndex(list), ep ? ep.voice : null).then((e) => {
+			if (!active) {
 				return;
 			}
-			playEpisode(e, 0);
-		} catch (err) {
+			if (e) {
+				playEpisode(e, 0);
+			} else {
+				notify(cfg.i18n.nothing);
+				stop();
+			}
+		}, () => {
 			notify(cfg.i18n.failed);
 			stop();
-		}
+		});
 	}
 
 	function playEpisode(e, p) {
+		const token = ++playToken;
 		const isNew = !ep || ep.id !== e.id;
 		const follow = following();
 		ep = e;
 		part = p;
-		A().pause();
-		if (queued && queued.ep.id === e.id && queued.ep.voice === e.voice && queued.part === p && !B().error) {
-			cur = 1 - cur;   // the other player has been loading exactly this
-		} else {
-			A().src = audioUrl(e, p);
-		}
 		queued = null;
-		A().playbackRate = speed();
-		A().play().catch(() => {
-			render();   // e.g. autoplay blocked: show the play button; load errors arrive as 'error' events
-		});
+		stall = { time: -1, count: 0, retried: false };
+		audio.pause();
 		if (isNew) {
 			episodeStarted(follow);
 		}
 		readAlong(follow && !isNew);
+		loading = !ready.has(pieceKey(e, p));
 		render();
-		prefetch();
+		preparePiece(e, p).then(() => {
+			if (token !== playToken || !active) {
+				return;   // moved on meanwhile
+			}
+			loading = false;
+			audio.src = audioUrl(e, p);
+			audio.dataset.piece = pieceKey(e, p);
+			audio.defaultPlaybackRate = speed();   // loading a new source resets playbackRate to this
+			audio.playbackRate = speed();
+			audio.play().catch(() => render());
+			render();
+		}, (err) => {
+			if (token === playToken && active) {
+				pieceFailed(err);
+			}
+		});
+		prefetch(token);
 	}
 
-	async function prefetch() {
-		const token = ++prefetchToken;
+	async function prefetch(token) {
 		const playing = ep;
 		let next;
 		if (part + 1 < playing.parts) {
@@ -273,18 +339,20 @@
 			}
 			next = { ep: e, part: 0 };
 		}
-		if (token !== prefetchToken || !active) {
+		if (token !== playToken || !active) {
 			return;   // skipped or stopped meanwhile
 		}
 		queued = next;
-		B().src = audioUrl(next.ep, next.part);
-		B().preload = 'auto';
-		B().load();
+		preparePiece(next.ep, next.part).catch(() => {});   // its problems are dealt with when it's its turn
 	}
 
-	function onEnded(ev) {
-		if (ev.target !== A() || !active) {
-			return;
+	function playing() {
+		return ep && audio.dataset.piece === pieceKey(ep, part);
+	}
+
+	function onEnded() {
+		if (!active || loading || !playing()) {
+			return;   // the unlocking silence, or a piece we've already moved on from
 		}
 		if (part + 1 < ep.parts) {
 			playEpisode(ep, part + 1);
@@ -299,8 +367,9 @@
 	}
 
 	async function advance(from) {
+		const token = playToken;
 		const e = await nextAfter(from).catch(() => null);
-		if (!active) {
+		if (!active || token !== playToken) {
 			return;
 		}
 		if (e) {
@@ -318,36 +387,71 @@
 		}
 	}
 
-	async function onError(ev) {
-		if (ev.target !== A() || !active || !A().getAttribute('src')) {
-			return;   // the prefetching player's errors are dealt with when it's its turn
+	function onError() {
+		if (active && !loading && playing()) {
+			pieceFailed(null);
 		}
+	}
+
+	// A piece couldn't be had or played: stop if it's the key or the cap, otherwise skip to the next article
+	async function pieceFailed(err) {
+		const token = ++playToken;
 		const failed = ep;
-		const failedPart = part;
-		const status = await fetch(cfg.urls.status, { credentials: 'same-origin' }).then((r) => r.json()).catch(() => null);
-		if (!active || ep !== failed || part !== failedPart) {
-			return;   // moved on meanwhile (skipped, or this error was already dealt with)
+		let status = err ? err.status : 0;
+		let message = err ? err.message : '';
+		if (!status) {
+			const s = await fetch(cfg.urls.status, { credentials: 'same-origin' }).then((r) => r.json()).catch(() => null);
+			status = s && !s.ready ? 503 : (s && s.capped ? 429 : 0);
+			message = '';
+			if (!active || token !== playToken) {
+				return;
+			}
 		}
-		if (status && !status.ready) {
-			notify(cfg.i18n.no_key);
-			stop();
-		} else if (status && status.capped) {
+		if (status === 429) {
 			notify(cfg.i18n.cap_reached);
+			stop();
+		} else if (status === 503) {
+			notify(message && message !== 'No OpenAI API key' ? 'Listen: ' + message : cfg.i18n.no_key);
 			stop();
 		} else {
 			notify(cfg.i18n.failed);
-			part = -1;   // so a second error for the same piece is ignored
 			advance(failed);
 		}
+	}
+
+	// Playing but not getting anywhere: try the piece again from where it got stuck, then give up on the article
+	function watchdog() {
+		if (!active || loading || audio.paused || audio.ended || !playing()) {
+			stall.count = 0;
+			return;
+		}
+		if (audio.currentTime !== stall.time) {
+			stall.time = audio.currentTime;
+			stall.count = 0;
+			return;
+		}
+		if (++stall.count < STALL_LIMIT) {
+			return;
+		}
+		stall.count = 0;
+		if (stall.retried) {
+			pieceFailed(null);
+			return;
+		}
+		stall.retried = true;
+		const at = audio.currentTime;
+		audio.addEventListener('loadedmetadata', () => { audio.currentTime = at; }, { once: true });
+		audio.load();
+		audio.play().catch(() => {});
 	}
 
 	function toggle() {
 		if (!active) {
 			start(null);
-		} else if (A().paused) {
-			A().play().catch(() => {});
+		} else if (audio.paused) {
+			audio.play().catch(() => {});
 		} else {
-			A().pause();
+			audio.pause();
 		}
 	}
 
@@ -355,7 +459,11 @@
 		if (!ep) {
 			return;
 		}
+		const token = playToken;
 		const e = queued && queued.part === 0 ? queued.ep : await nextAfter(ep).catch(() => null);
+		if (token !== playToken) {
+			return;
+		}
 		if (e) {
 			playEpisode(e, 0);
 		} else {
@@ -367,7 +475,7 @@
 		if (!ep) {
 			return;
 		}
-		if (part > 0 || A().currentTime > 3) {
+		if (part > 0 || audio.currentTime > 3) {
 			playEpisode(ep, 0);   // from the top; the audio is cached by now
 			return;
 		}
@@ -376,18 +484,18 @@
 	}
 
 	function seek(seconds) {
-		A().currentTime = Math.max(0, A().currentTime + seconds);
+		audio.currentTime = Math.max(0, audio.currentTime + seconds);
 	}
 
 	function stop() {
 		active = false;
-		prefetchToken++;
+		loading = false;
+		playToken++;
 		queued = null;
-		players.forEach((p) => {
-			p.pause();
-			p.removeAttribute('src');
-			p.load();
-		});
+		audio.pause();
+		audio.removeAttribute('src');
+		audio.dataset.piece = '';
+		audio.load();
 		document.querySelectorAll('.listen-current').forEach((flux) => flux.classList.remove('listen-current'));
 		document.querySelectorAll('.listen-reading').forEach((el) => el.classList.remove('listen-reading'));
 		ep = null;
@@ -546,7 +654,8 @@
 		SPEEDS.forEach((s) => rate.append(new Option(s + '×', String(s), false, s === speed())));
 		rate.addEventListener('change', () => {
 			save(SPEED_KEY, Number(rate.value));
-			players.forEach((p) => { p.playbackRate = speed(); });
+			audio.defaultPlaybackRate = speed();
+			audio.playbackRate = speed();
 		});
 
 		bar.append(
@@ -561,18 +670,18 @@
 	}
 
 	function render() {
-		const playing = active && !A().paused;
+		const isPlaying = active && !loading && !audio.paused;
 		document.querySelectorAll('.listen-play').forEach((btn) => btn.classList.toggle('active', active));
 		if (!bar) {
 			return;
 		}
 		const toggleBtn = bar.querySelector('.listen-toggle');
-		toggleBtn.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">' + ICONS[playing || (active && !ep) ? 'pause' : 'play'] + '</svg>';
-		toggleBtn.title = playing ? cfg.i18n.pause : cfg.i18n.play;
+		toggleBtn.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">' + ICONS[isPlaying || (active && loading) ? 'pause' : 'play'] + '</svg>';
+		toggleBtn.title = isPlaying ? cfg.i18n.pause : cfg.i18n.play;
 		toggleBtn.setAttribute('aria-label', toggleBtn.title);
 		bar.querySelector('.listen-title').textContent = ep ? ep.title : '…';
 		bar.querySelector('.listen-meta').textContent = ep ? [ep.feed, ep.voice + ' · ' + cfg.i18n.ai_voice].filter(Boolean).join(' · ') : '';
-		bar.classList.toggle('listen-loading', active && (!ep || A().readyState < 3));
+		bar.classList.toggle('listen-loading', active && (loading || audio.readyState < 3));
 		renderProgress();
 	}
 
@@ -580,8 +689,8 @@
 		if (!bar || !ep) {
 			return;
 		}
-		const d = A().duration;
-		const within = Number.isFinite(d) && d > 0 ? Math.min(1, A().currentTime / d) : 0;
+		const d = audio.duration;
+		const within = playing() && Number.isFinite(d) && d > 0 ? Math.min(1, audio.currentTime / d) : 0;
 		bar.querySelector('.listen-progress span').style.width = (100 * (part + within) / Math.max(1, ep.parts)).toFixed(1) + '%';
 	}
 
@@ -613,16 +722,15 @@
 		}
 		cfg = context.extensions.listen;
 		document.addEventListener('click', onClick, true);
-		players.forEach((p) => {
-			p.preload = 'auto';
-			p.addEventListener('ended', onEnded);
-			p.addEventListener('error', onError);
-			p.addEventListener('timeupdate', () => p === A() && renderProgress());
-			['play', 'pause', 'playing', 'waiting', 'canplay'].forEach((type) => p.addEventListener(type, () => p === A() && render()));
-		});
+		audio.preload = 'auto';
+		audio.addEventListener('ended', onEnded);
+		audio.addEventListener('error', onError);
+		audio.addEventListener('timeupdate', renderProgress);
+		['play', 'pause', 'playing', 'waiting', 'canplay'].forEach((type) => audio.addEventListener(type, render));
+		setInterval(watchdog, STALL_CHECK_MS);
 		if ('mediaSession' in navigator) {
 			const handlers = {
-				play: () => A().play(), pause: () => A().pause(), nexttrack: skip, previoustrack: back,
+				play: () => audio.play(), pause: () => audio.pause(), nexttrack: skip, previoustrack: back,
 				seekbackward: () => seek(-15), seekforward: () => seek(15),
 			};
 			Object.entries(handlers).forEach(([action, fn]) => {
